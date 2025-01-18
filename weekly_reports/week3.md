@@ -9,7 +9,7 @@ After the interview we decided on an initial goal to view the hourly trends on w
 Selecting all the unique `LocationID`s from the aggregate `parquet` datafile gives some strange `ID` formats. For one example we have:
 
 | `LocationID`      | My interpretation                           |
-| ------------      | -- --------------                           |
+| ------------      | -----------------                           |
 | 03011             | Base ID for Wilsonville                     |
 | 0301101           | bidirectional for lane 1?                   |
 | 0301101_NB        | NB for lane 1?                              |
@@ -50,7 +50,7 @@ Must be mistakes:
 - 3
 - 4
 
-And when directions is a number it seems to match the lane information. If the direction value parsed from the `LocationID` is reliable then updating some of these is an easy fix which has been applied in the code.
+And when `Directions` is a number it seems to match the lane information parsed from `LocationID`. If the direction value parsed from the `LocationID` is reliable then updating some of these is an easy fix (already applied in the code).
 
 ## Results and Analysis
 
