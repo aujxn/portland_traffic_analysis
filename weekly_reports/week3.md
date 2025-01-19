@@ -57,6 +57,9 @@ And when `Directions` is a number it seems to match the lane information parsed 
 Here we plot the hourly pre- vs post-covid ATR count data averages and IQRs. The columns correspond to the direction of travel and the rows to weekdays and weekend data. Generally, the post-covid trends are below the pre-covid ones. It isn't immediately clear if this is due to congestion or less demand.
 
 ### Interstate Bridge
+
+The drop in the south-bound direction on the post-covid data may be a result of missing data. Is the lane occlusion from construction only in the south-bound direction?
+
 ![Interstate Bridge](../plots/26004_Interstate_Bridge_NB_SB.png)
 
 ### Glenn Jackson Bridge
