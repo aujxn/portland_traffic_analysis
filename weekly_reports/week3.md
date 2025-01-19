@@ -56,6 +56,12 @@ And when `Directions` is a number it seems to match the lane information parsed 
 
 Here we plot the hourly pre- vs post-covid ATR count data averages and IQRs. The columns correspond to the direction of travel and the rows to weekdays and weekend data. Generally, the post-covid trends are below the pre-covid ones. It isn't immediately clear if this is due to congestion or less demand.
 
+### Interstate Bridge
+![Interstate Bridge](../plots/26004_Interstate_Bridge_NB_SB.png)
+
+### Glenn Jackson Bridge
+![Glenn Jackson Bridge](../plots/26024_Glenn_Jackson_Bridge_NB_SB.png)
+
 ### Wilsonville
 ![Wilsonville](../plots/03011_Wilsonville_NB_SB.png)
 

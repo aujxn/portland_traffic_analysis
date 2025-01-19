@@ -1,6 +1,7 @@
 import pandas as pd
 import polars as pl
 import os
+import glob
 from polars import col
 import numpy as np
 import matplotlib.pyplot as plt
@@ -8,13 +9,13 @@ import pyarrow as pa
 import pyarrow.parquet as pq
 
 def main():
-    file_pq = './data/ATR10_18-24.pq'
     metadata_file = './data/ATR_metadata.csv'
+    datafolder = './data/'
 
     # Now we have a (long) Polars DataFrame with columns:
     # [OrigLocationID, LocationID, Lane, Direction, DirectionRaw, ParsedDirection, DateTime, Volume, Year, Hour, Weekend]
     # and each row corresponds to one hour of data at the ATR location
-    df_polars = preprocess_data_polars(file_pq)
+    df_polars = preprocess_data_polars(datafolder)
 
     # Convert back to pandas since heavy lifting is done
     df_final = df_polars.to_pandas()
@@ -90,15 +91,75 @@ def parse_location_id(df: pl.DataFrame) -> pl.DataFrame:
 
     return df.drop("id_parts")
 
-def preprocess_data_polars(file_parquet: str) -> pl.DataFrame:
+# Normalizing everthing between the differences in how the csv and parquet are loaded 
+# in polars is really ugly... But the speedup of polars is worth it.
+def read_all(folder: str) -> pl.DataFrame:
+    csv_files = glob.glob(f"{folder}ATR26*.csv")
+    pq_files  = glob.glob(f"{folder}*.pq")
+    dfs = []
+
+    for file in csv_files:
+        df_csv = pl.read_csv(file, null_values=["NA", "NaN", "nan", "None"])
+        # Parse datetime if needed
+        df_csv = df_csv.with_columns([
+            pl.col("StartDate").str.strptime(pl.Datetime("us"), strict=False),
+            pl.col("EndDate").str.strptime(pl.Datetime("us"), strict=False),
+        ])
+        # Ensure datetime columns are tz-naive (if needed)
+        df_csv = df_csv.with_columns([
+            pl.col("StartDate").dt.replace_time_zone(None),  # drop tz
+            pl.col("EndDate").dt.replace_time_zone(None),
+        ])
+        # Force all integer columns to Int64
+        df_csv = df_csv.with_columns(
+            [
+                pl.col(col_name).cast(pl.Int64)
+                for col_name, dtype in df_csv.schema.items()
+                if dtype in [pl.Int8, pl.Int16, pl.Int32, pl.Int64, pl.UInt8, pl.UInt16, pl.UInt32, pl.UInt64]
+            ]
+        )
+        # Now force all columns matching `HXX` or `HXX_#` to Int64
+        df_csv = df_csv.with_columns(
+            pl.col("^H\\d+(_\\d+)?$").cast(pl.Int64, strict=False)
+        )
+
+        # Also unify `Interval`, `Total`, etc. if needed:
+        df_csv = df_csv.with_columns(
+            pl.col("Interval").cast(pl.Int64, strict=False),
+            pl.col("Total").cast(pl.Int64, strict=False)
+        )
+        dfs.append(df_csv)
+
+    for file in pq_files:
+        df_pq = pl.read_parquet(file)
+        # Ensure datetime columns are tz-naive (if needed)
+        df_pq = df_pq.with_columns([
+            pl.col("StartDate").dt.replace_time_zone(None),  # drop tz
+            pl.col("EndDate").dt.replace_time_zone(None),
+        ])
+        # Force numeric columns to Int64
+        df_pq = df_pq.with_columns(
+            [
+                pl.col(col_name).cast(pl.Int64)
+                for col_name, dtype in df_pq.schema.items()
+                if dtype in [pl.Int8, pl.Int16, pl.Int32, pl.Int64, pl.UInt8, pl.UInt16, pl.UInt32, pl.UInt64]
+            ]
+        )
+        dfs.append(df_pq)
+
+    # Now all DataFrames in `dfs` have matching dtypes for shared columns
+    df_all = pl.concat(dfs, how="vertical")
+    return df_all
+
+def preprocess_data_polars(folder: str) -> pl.DataFrame:
     """
     Example read + robust parse of ID + unpivot (2 or 3 part IDs).
     """
 
-    # 1) Read Parquet
-    df = pl.read_parquet(file_parquet)
+    # 1) Read Parquet and CSVs
+    df = read_all(folder)
 
-    # 2) Rename StartDate -> DateTime if it's already a datetime
+    # 2) Rename StartDate -> DateTime
     df = df.rename({"StartDate": "DateTime"})
 
     # 3) Rename original col => OrigLocationID
