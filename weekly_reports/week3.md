@@ -58,7 +58,7 @@ Here we plot the hourly pre- vs post-covid ATR count data averages and IQRs. The
 
 ### Interstate Bridge
 
-The drop in the south-bound direction on the post-covid data may be a result of missing data. Is the lane occlusion from construction only in the south-bound direction?
+These results don't seem to line up with the provided information of lane occlusion in the 2024 data but maybe the impact is smaller than the increase in volume?
 
 ![Interstate Bridge](../plots/26004_Interstate_Bridge_NB_SB.png)
 
