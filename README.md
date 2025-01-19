@@ -28,4 +28,4 @@ Weekly progress and analysis can be found in the `weekly_reports` folder. See th
 
 ## License
 
-See [license](LICENSE)
+See [license](LICENSE).
