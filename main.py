@@ -105,10 +105,9 @@ def read_all(folder: str) -> pl.DataFrame:
             pl.col("StartDate").str.strptime(pl.Datetime("us"), strict=False),
             pl.col("EndDate").str.strptime(pl.Datetime("us"), strict=False),
         ])
-        # Ensure datetime columns are tz-naive (if needed)
         df_csv = df_csv.with_columns([
-            pl.col("StartDate").dt.replace_time_zone(None),  # drop tz
-            pl.col("EndDate").dt.replace_time_zone(None),
+            pl.col("StartDate").dt.replace_time_zone("UTC"),
+            pl.col("EndDate").dt.replace_time_zone("UTC"),
         ])
         # Force all integer columns to Int64
         df_csv = df_csv.with_columns(
@@ -132,10 +131,10 @@ def read_all(folder: str) -> pl.DataFrame:
 
     for file in pq_files:
         df_pq = pl.read_parquet(file)
-        # Ensure datetime columns are tz-naive (if needed)
+        # Ensure datetime columns are UTC
         df_pq = df_pq.with_columns([
-            pl.col("StartDate").dt.replace_time_zone(None),  # drop tz
-            pl.col("EndDate").dt.replace_time_zone(None),
+            pl.col("StartDate").dt.replace_time_zone("UTC"), 
+            pl.col("EndDate").dt.replace_time_zone("UTC"),
         ])
         # Force numeric columns to Int64
         df_pq = df_pq.with_columns(
@@ -198,9 +197,12 @@ def preprocess_data_polars(folder: str) -> pl.DataFrame:
         (pl.col("HourCol").str.strip_prefix("H").cast(pl.Int64) - 1).alias("HourOffset")
     ])
 
-    # Shift DateTime
+    # Shift DateTime and convert to PST/PDT
     df_long = df_long.with_columns([
         (pl.col("DateTime") + pl.duration(hours="HourOffset")).alias("DateTime")
+    ])
+    df_long = df_long.with_columns([
+        pl.col("DateTime").dt.convert_time_zone("America/Los_Angeles").alias("DateTime")
     ])
 
     # 9) Additional columns

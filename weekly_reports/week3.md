@@ -56,8 +56,6 @@ And when `Directions` is a number it seems to match the lane information parsed 
 
 Here we plot the hourly pre- vs post-covid ATR count data averages and IQRs. The columns correspond to the direction of travel and the rows to weekdays and weekend data. Generally, the post-covid trends are below the pre-covid ones. It isn't immediately clear if this is due to congestion or less demand.
 
-NOTE: These plots only make sense to me if the times are UTC... Shifting each plot 8 hours to the left to get PST would make them more sensible.
-
 ### Interstate Bridge
 
 These results don't seem to line up with the provided information of lane occlusion in the 2024 data but maybe the impact is smaller than the increase in volume?
