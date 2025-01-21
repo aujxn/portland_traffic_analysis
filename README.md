@@ -19,8 +19,11 @@ python3 -m venv venv
 source venv/bin/activate
 pip install --upgrade pip
 pip install -r requirements.txt
-python3 main.py
+cd src
+python3 main.py   <or>   python3 app.py
 ```
+
+`python3 main.py` generates the hourly plots for weekends vs weekdays for all of the locations. For a more interactive experience, running `python3 app.py` will start a simple web-server which can be accessed by going to `localhost:8050` in your browser. Click on one of the ATR locations on the rendered map to generate the associated plots.
 
 ## Results
 

@@ -66,7 +66,7 @@ These results don't seem to line up with the provided information of lane occlus
 ![Glenn Jackson Bridge](../plots/26024_Glenn_Jackson_Bridge_NB_SB.png)
 
 ### Wilsonville
-![Wilsonville](../plots/03011_Wilsonville_NB_SB.png)
+![Wilsonville](../plots/3011_Wilsonville_NB_SB.png)
 
 ### Vista Ridge
 
@@ -81,7 +81,7 @@ The mean trend going outside of the IQR here is concerning... This indicates eit
 ![Beaverton-Bethany](../plots/34010_Beaverton-Bethany_EB_WB.png)
 
 ### Stafford
-![Stafford](../plots/03016_Stafford_NB_SB.png)
+![Stafford](../plots/3016_Stafford_NB_SB.png)
 
 ### Hoyt
 ![Hoyt](../plots/26014_Hoyt_EB_WB.png)
