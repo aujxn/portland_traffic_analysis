@@ -2,6 +2,18 @@
 
 After the interview we decided on an initial goal to view the hourly trends on weekdays / weekends for pre-covid (2018-19) and post-covid (2023-24) intervals for the various ATR sites provided.
 
+## Action Plan Brainstorm
+
+### Data Quality Analysis
+- Find missing data, outliers, or inconsistencies
+    - Consistency check might include checking that lane data adds up to totals
+    - Mean outside of IQR on Vista Ridge
+    - Large IQR range on pre-covid data for interstate bridge southbound
+
+### Summaries to Study
+- IQR for each hour filtered by time periods (pre/post covid) and days of week
+- Histograms / distribution of traffic volume for certain times of the day filtered as above
+
 ## Notable data issues
 
 ### Inconsistent naming of ATR LocationIDs
