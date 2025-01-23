@@ -110,7 +110,7 @@ def make_tab_content(idx):
             dcc.Graph(
                 id={"type": "trace-map", "index": idx},
                 figure=go.Figure(),  # we fill it later
-                style={"height":"700px"},
+                style={"width":"95%"},
                 config={"scrollZoom": False}
             ),
             style={'display': 'inline-block', 'height':'600px', 'width': '40%', 'vertical-align': 'top'}
@@ -221,8 +221,6 @@ def build_map_figure(location_id=None):
                 zoom=9,
             ),
             showlegend=False,
-            height=700,
-            width=700,
             #clickmode='event+select',  # Enable selection on click
             margin=dict(l=0, r=0, t=0, b=0),
             xaxis=dict(fixedrange=True),
