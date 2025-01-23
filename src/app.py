@@ -1,17 +1,19 @@
 import dash
 from dash import dcc, html
-from dash.dependencies import Input, Output
+from dash.dependencies import Input, Output, State, MATCH, ALL
 import pandas as pd
 import logging
 import sys
 import numpy as np
 import plotly.graph_objects as go
-from plotly.subplots import make_subplots
+import plotly.colors as pc
 
 from utils import load_metadata_pandas, load_processed_pandas
 
 logging.basicConfig(stream=sys.stdout, level=logging.DEBUG)
 logger = logging.getLogger(__name__)
+
+MAX_TABS = 5
 
 df_traffic = load_processed_pandas()
 df_meta = load_metadata_pandas()
@@ -23,542 +25,303 @@ df = pd.merge(df_traffic, df_meta, on='LocationID', how='inner')
 valid_ids = df['LocationID'].unique()
 df_meta = df_meta[df_meta['LocationID'].isin(valid_ids)].copy()
 
-# 3) Create a Plotly map figure
-#    We'll store the location ID in customdata so we can retrieve it on clicks
-fig_map = go.Figure(
-    data=go.Scattermap(
-        lat=df_meta['LAT'],
-        lon=df_meta['LONGTD'],
-        text=df_meta['ATR_NAME'],
-        customdata=df_meta['LocationID'],  # store the ID for callback usage
-        mode='markers',
-        marker=dict(
-            color='black', 
-            size=25, 
+def trace_form(idx):
+# Some form fields
+    return [
+        html.H1("No ATR location selected", id={"type":"selected-name", "index":idx}),
+        html.H3("Select a location on the map to plot", id={"type":"selected-desc", "index":idx}),
+
+        dcc.Checklist(
+            id={"type":"trace-enabled", "index":idx},
+            options=[ {"label":"Enabled","value":True} ],
+            value=[],
+            inline=True
         ),
-        selected=dict(
-            marker=dict(color='red', size=30)
+        html.Br(),
+
+        html.Label("Trace Name:"),
+        html.Br(),
+        dcc.Input(
+            id={"type":"trace-name", "index":idx}, 
+            type="text", 
+            value=f"trace{idx}"
         ),
-    ), 
-    layout=dict(
-        map=dict(
-            style="streets",
-            center=dict(lat=45.5152, lon=-122.6784),
-            zoom=9,
+        html.Br(),
+        html.Br(),
+
+        html.Label("Date Range:", id={"type":"date-label", "index":idx}),
+        html.Br(),
+        dcc.DatePickerRange(
+            id={"type":"trace-dates", "index":idx},
+            start_date="2023-01-01",
+            end_date="2023-12-31"
         ),
-        height=600,
-        width=600,
-        clickmode='event+select',  # Enable selection on click
-        margin=dict(l=0, r=0, t=0, b=0)
-    )
-)
+        html.Br(),
+        html.Br(),
+
+        html.Label("Days of Week (multi-select):"),
+        html.Br(),
+        dcc.Checklist(
+            id={"type":"trace-days-of-week", "index":idx},
+            options=[
+                {"label":"Mon","value":0}, {"label":"Tue","value":1},
+                {"label":"Wed","value":2}, {"label":"Thu","value":3},
+                {"label":"Fri","value":4}, {"label":"Sat","value":5},
+                {"label":"Sun","value":6},
+            ],
+            value=[0,1,2,3,4],  # default: weekdays
+            inline=True
+        ),
+        html.Br(),
+
+        # TODO disable invalid directions
+        html.Label("Direction:"),
+        html.Br(),
+        dcc.RadioItems(
+            id={"type":"trace-direction","index":idx},
+            options=[{"label":d,"value":d,"disabled":True} for d in ["NB","SB","EB","WB"]],
+            value="NB"
+        ),
+        html.Br(),
+
+        html.Label("Quartiles (Lower / Upper):"),
+        html.Br(),
+        dcc.RangeSlider(
+            0.0, 
+            1.0, 
+            0.05, 
+            value=[0.25, 0.75], 
+            id={'type':'trace-quartiles', 'index':idx}
+        ),
+        html.Br(),
+    ]
 
 
-# 4) Create a placeholder figure for the traffic plot
-fig_traffic = go.Figure()
-fig_traffic.update_layout(
-    title="Traffic Volume for Selected Location"
-)
+def make_tab_content(idx):
+    """
+    Returns the layout (a Div) for a single tab with index `idx`.
+    Includes a map + some form fields.
+    We'll use pattern-matching IDs with { "type":..., "index": idx }
+    so we can handle them in callbacks.
+    """
+    return html.Div([
+        # A map
+        html.Div(
+            dcc.Graph(
+                id={"type": "trace-map", "index": idx},
+                figure=go.Figure(),  # we fill it later
+                style={"height":"700px"},
+                config={"scrollZoom": False}
+            ),
+            style={'display': 'inline-block', 'height':'600px', 'width': '40%', 'vertical-align': 'top'}
+        ),
+        html.Div(
+            trace_form(idx),
+            style={'display': 'inline-block', 'width': '60%'}
+        )
+    ])
 
-# 5) Build the Dash app layout
 app = dash.Dash(__name__)
 
-'''
-app.layout = html.Div([
-    html.H1("ATR Traffic Dashboard"),
-    html.Div(
-        style={"display": "flex", "flex-grow": 1}, 
-        children=[
-            dcc.Graph(id="map-graph", figure=fig_map),
-            html.Div(
-                style={"display": "flex", "flex-grow": 1}, 
-                children=[
-                    #html.H3("Selected Location Plots"),
-                    dcc.Graph(id="traffic-graph", figure=fig_traffic)
-                ])
-        ])
-])
-'''
+# We create 5 tabs up front
+tabs_children = []
+for i in range(MAX_TABS):
+    tabs_children.append(
+        dcc.Tab(
+            id={"type":"trace-tab","index":i},
+            label=f"Trace {i}",
+            value=str(i),
+            children=make_tab_content(i),
+        )
+    )
 
-# We'll define some convenience lists for year/month selections
-YEARS = [2018, 2019, 2020, 2021, 2022, 2023, 2024]
-MONTHS = list(range(1,13))
-
-# Day-of-week options
-DAY_OPTIONS = [
-    {"label": "Monday",       "value": "MON"},
-    {"label": "Tuesday",      "value": "TUE"},
-    {"label": "Wednesday",    "value": "WED"},
-    {"label": "Thursday",     "value": "THU"},
-    {"label": "Friday",       "value": "FRI"},
-    {"label": "Saturday",     "value": "SAT"},
-    {"label": "Sunday",       "value": "SUN"},
-    {"label": "All Weekdays", "value": "WEEKDAY"},
-    {"label": "All Weekends", "value": "WEEKEND"},
-]
-
-# Helper function: produce a set of (year, month) dropdowns for start & end
-def period_controls(prefix):
-    return html.Div([
-        html.Label(f"{prefix} Start Year:"),
-        dcc.Dropdown(
-            id=f"{prefix.lower()}-start-year",
-            options=[{"label": y, "value": y} for y in YEARS],
-            value=2018,  # default
-            clearable=False,
-            style={"width":"100px"}
-        ),
-        html.Label("Start Month:"),
-        dcc.Dropdown(
-            id=f"{prefix.lower()}-start-month",
-            options=[{"label": m, "value": m} for m in MONTHS],
-            value=1,
-            clearable=False,
-            style={"width":"80px"}
-        ),
-        html.Label(f"{prefix} End Year:"),
-        dcc.Dropdown(
-            id=f"{prefix.lower()}-end-year",
-            options=[{"label": y, "value": y} for y in YEARS],
-            value=2019,
-            clearable=False,
-            style={"width":"100px"}
-        ),
-        html.Label("End Month:"),
-        dcc.Dropdown(
-            id=f"{prefix.lower()}-end-month",
-            options=[{"label": m, "value": m} for m in MONTHS],
-            value=12,
-            clearable=False,
-            style={"width":"80px"}
-        ),
-    ], style={"display":"inline-block", "marginRight":"20px"})
-
-
-app.layout = html.Div([
-    html.H1("ATR Traffic Dashboard"),
-
-    # Map
-    dcc.Graph(id="map-graph", figure=fig_map),
-
-    # Controls for period 1 and period 2
-    html.Div([
-        period_controls("Period1"),
-        period_controls("Period2"),
-    ]),
-
-    # Day-of-week selection
-    html.Div([
-        html.Label("Day of Week:"),
-        dcc.Dropdown(
-            id="day-of-week",
-            options=DAY_OPTIONS,
-            value="WEEKDAY",  # default
-            clearable=False,
-            style={"width":"150px"}
-        ),
-    ], style={"marginTop":"20px", "marginBottom":"20px"}),
-
-    html.H3("Selected Location Plots (Interactive Filter)"),
-
-    dcc.Graph(id="traffic-graph", figure=fig_traffic),
-])
+app.layout = html.Div(
+    [dcc.Store(id={"type":"trace-store","index":idx}, data=None) for idx in range(MAX_TABS)] + 
+        [
+            dcc.Tabs(id="trace-tabs", value="0", children=tabs_children),
+            html.Button("Plot", id="btn-plot", n_clicks=0),
+            dcc.Graph(id="main-fig")
+        ]
+)
 
 @app.callback(
-    Output("traffic-graph", "figure"),
-    [
-        Input("map-graph", "clickData"),
-        Input("period1-start-year", "value"),
-        Input("period1-start-month", "value"),
-        Input("period1-end-year", "value"),
-        Input("period1-end-month", "value"),
-        Input("period2-start-year", "value"),
-        Input("period2-start-month", "value"),
-        Input("period2-end-year", "value"),
-        Input("period2-end-month", "value"),
-        Input("day-of-week", "value"),
-    ]
+    Output({"type":"trace-store", "index":MATCH}, "data"),
+    Output({"type":"trace-map","index":MATCH}, "figure"),
+    Output({"type":"selected-name","index":MATCH}, "children"),
+    Output({"type":"selected-desc","index":MATCH}, "children"),
+    Output({"type":"trace-direction","index":MATCH}, "options"),
+    #Output({"type":"trace-dates","index":MATCH}, "min_date_allowed"),
+    #Output({"type":"trace-dates","index":MATCH}, "max_date_allowed"),
+    Output({"type":"date-label","index":MATCH}, "children"),
+    Input({"type":"trace-map","index":MATCH}, "clickData"),
+    State({"type":"trace-store", "index":MATCH}, "data")
 )
-def update_traffic_plot(
-    click_data,
-    p1_start_yr, p1_start_mo, p1_end_yr, p1_end_mo,
-    p2_start_yr, p2_start_mo, p2_end_yr, p2_end_mo,
-    day_choice
-):
-    """
-    1) Retrieve location from map click.
-    2) Determine two periods from user input.
-    3) Filter df accordingly.
-    4) Plot two subplots (one for direction1, one for direction2).
-    """
+def map_click_update(clickData, store_data):
+    name = "No ATR location selected" 
+    desc = "Select a location on the map to plot"
+    min_date = "2000-01-01"
+    max_date = "2025-01-01"
+    date_label = "Date range: "
+    direction_options = [{"label":d,"value":d,"disabled":True} for d in ["NB","SB","EB","WB"]]
+    ctx = dash.callback_context
+    if not ctx.triggered:
+        # no update yet
+        # build a default figure from store_data for this tab
+        #return store_data, build_map_figure(), name, desc, direction_options, min_date, max_date, date_label
+        return store_data, build_map_figure(), name, desc, direction_options, date_label
 
-    # If no map click
-    if click_data is None:
-        return go.Figure().update_layout(title="Select a location on the map.")
+    # user clicked a marker. store location in store_data for this tab
+    if clickData:
+        loc = clickData["points"][0]["customdata"]  # your marker's location ID
+        if store_data is None:
+            store_data = {}
+        store_data["location_id"] = loc
 
-    location_id = click_data["points"][0]["customdata"]
+        info = df_meta[df_meta["LocationID"] == loc]
+        data = df[df["LocationID"]==loc]
 
-    # 1) Build sets or lists of year-month for each period
-    #    We'll define a function that returns a boolean mask if the row is in that period
-    #    For simplicity, we combine year+month into a single integer like (year * 100 + month)
-    df["YearMonth"] = df["Year"]*100 + df["DateTime"].dt.month
-
-    period1_start = p1_start_yr * 100 + p1_start_mo
-    period1_end   = p1_end_yr   * 100 + p1_end_mo
-    period2_start = p2_start_yr * 100 + p2_start_mo
-    period2_end   = p2_end_yr   * 100 + p2_end_mo
-
-    # Create a new "Period" column for each row: "Period1", "Period2", or None if not in either.
-    # We'll do it in a copy to avoid messing the global df.
-    df_local = df.copy()
-    df_local["Period"] = None
-
-    mask_p1 = (df_local["YearMonth"] >= period1_start) & (df_local["YearMonth"] <= period1_end)
-    mask_p2 = (df_local["YearMonth"] >= period2_start) & (df_local["YearMonth"] <= period2_end)
-
-    df_local.loc[mask_p1, "Period"] = "Period1"
-    df_local.loc[mask_p2, "Period"] = "Period2"
-
-    # 2) Filter to Lane=None, direction in [NB,SB,EB,WB], location ID
-    dirs = ["NB","SB","EB","WB"]
-    sub = df_local[
-        (df_local["Lane"].isna()) &
-        (df_local["Direction"].isin(dirs)) &
-        (df_local["LocationID"] == location_id) &
-        (df_local["Period"].notna())
-    ].copy()
-
-    if sub.empty:
-        return go.Figure().update_layout(title=f"No data for {location_id} in selected periods")
-
-    # 3) Handle day-of-week filtering
-    #    We can create a column DayOfWeek = df["DateTime"].dt.dayofweek (0=Mon,...6=Sun)
-    #    Then interpret user choice:
-    #       MON -> 0
-    #       TUE -> 1
-    #       ...
-    #       WEEKDAY -> 0..4
-    #       WEEKEND -> 5..6
-    sub["DayOfWeek"] = sub["DateTime"].dt.dayofweek  # Monday=0, Sunday=6
-
-    def day_filter(df_, choice):
-        if choice == "WEEKDAY":
-            return df_[df_["DayOfWeek"] <= 4]
-        elif choice == "WEEKEND":
-            return df_[(df_["DayOfWeek"] == 5) | (df_["DayOfWeek"] == 6)]
-        else:
-            # Specific day? We'll map MON->0, TUE->1, ...
-            mapping = {
-                "MON": 0, "TUE":1, "WED":2, "THU":3,
-                "FRI":4, "SAT":5, "SUN":6
-            }
-            wanted = mapping.get(choice, None)
-            if wanted is None:
-                return df_  # fallback if choice is unrecognized
-            return df_[df_["DayOfWeek"] == wanted]
-
-    sub = day_filter(sub, day_choice)
-
-    if sub.empty:
-        return go.Figure().update_layout(title=f"No data after day-of-week filter for {location_id}")
-
-    # 4) Now we have sub with columns: Period in {Period1, Period2}, plus directions
-    #    We'll produce a two-subplot figure with fill bands for each Period.
-    #    Similar to the earlier approach, but the "Period" column is now "Period1" / "Period2" 
-    #    instead of "2018–2019" / "2023–2024".
-    fig = plot_two_subplots_mean_iqr(sub)
-    return fig
+        name = info["ATR_NAME"].values[0]
+        name = f"{loc}: {name}"
+        desc = info["LOCATION"].values[0]
+        valid_dirs = data["Direction"].unique()
+        direction_options = [{"label":d,"value":d,"disabled":d not in valid_dirs} for d in ["NB","SB","EB","WB"]]
+        min_date = data["DateTime"].min()
+        max_date = data["DateTime"].max()
+        date_label = f"Date range (Data available from {min_date.date()} to {max_date.date()}):"
 
 
-#####################
-# 4) The Two-Subplot Function
-#####################
+    fig = build_map_figure(location_id=store_data["location_id"] if store_data else None)
+    #return store_data, fig, name, desc, direction_options, min_date, max_date, date_label
+    return store_data, fig, name, desc, direction_options, date_label
 
-def plot_two_subplots_mean_iqr(df_sub):
-    """
-    Produces a 1x2 subplot figure. Each subplot = one direction.
-    X-axis = Hour, Y-axis = Volume
-    Data from Period1 or Period2 => fill-between Q1..Q3 plus mean line.
-    """
-
-    # Force hour from DateTime, or if you already have df_sub["Hour"]:
-    df_sub["Hour"] = df_sub["DateTime"].dt.hour
-
-    # Identify which directions
-    directions = df_sub["Direction"].dropna().unique()
-    directions = [d for d in directions if d in ["NB","SB","EB","WB"]]
-
-    if len(directions) == 0:
-        return go.Figure().update_layout(title="No recognized directions")
-
-    # If more than 2 directions, take first 2
-    directions = directions[:2]
-
-    # Make subplots
-    fig = make_subplots(
-        rows=1, cols=2,
-        subplot_titles=[f"Dir: {directions[0]}", f"Dir: {directions[1]}" if len(directions)>1 else ""],
-        shared_yaxes=True,
-        horizontal_spacing=0.1
-    )
-
-    # We'll define two "named periods": "Period1" and "Period2" 
-    # and color them differently
-    color_map = {"Period1": "blue", "Period2": "red"}
-
-    # For each direction => filter => group by (Period, Hour) => mean, Q1, Q3 => pivot => fill
-    for i, direction in enumerate(directions):
-        c = i+1  # col index
-        dir_df = df_sub[df_sub["Direction"] == direction].copy()
-        if dir_df.empty:
-            continue
-
-        # Group
-        agg = (
-            dir_df.groupby(["Period","Hour"])["Volume"]
-                  .agg(
-                      mean="mean",
-                      Q1=lambda x: x.quantile(0.25),
-                      Q3=lambda x: x.quantile(0.75)
-                  )
-                  .reset_index()
+def build_map_figure(location_id=None):
+    # create a scattermapbox of all ATR points
+    # highlight marker if location_id == ...
+    # e.g. color them black, color the selected one red
+    fig = go.Figure(
+        data=go.Scattermap(
+            lat=df_meta['LAT'],
+            lon=df_meta['LONGTD'],
+            text=df_meta['ATR_NAME'],
+            customdata=df_meta['LocationID'],  # store the ID for callback usage
+            mode='markers',
+            marker=dict(
+                color='black', 
+                size=25, 
+            ),
+            #selected=dict(
+            #    marker=dict(color='red', size=30)
+            #),
+        ), 
+        layout=dict(
+            map=dict(
+                style="streets",
+                center=dict(lat=45.5152, lon=-122.6784),
+                zoom=9,
+            ),
+            showlegend=False,
+            height=700,
+            width=700,
+            #clickmode='event+select',  # Enable selection on click
+            margin=dict(l=0, r=0, t=0, b=0),
+            xaxis=dict(fixedrange=True),
+            yaxis=dict(fixedrange=True)
         )
-
-        # Pivot wide => columns like mean_Period1, mean_Period2, Q1_Period1, ...
-        wide = agg.pivot(index="Hour", columns="Period", values=["mean","Q1","Q3"])
-        wide.columns = [f"{lvl0}_{lvl1}" for lvl0,lvl1 in wide.columns]
-        wide = wide.reset_index()
-
-        # For each period in [Period1, Period2], add fill + mean line
-        for period in ["Period1","Period2"]:
-            if f"mean_{period}" not in wide.columns:
-                continue
-
-            # Q1 line
-            fig.add_trace(go.Scatter(
-                name=f"{period} (Q1)",
-                x=wide["Hour"],
-                y=wide.get(f"Q1_{period}", pd.Series()),
-                mode="lines",
-                line=dict(width=0),
-                showlegend=False
-            ), row=1, col=c)
-
-            # Q3 fill
-            fig.add_trace(go.Scatter(
-                name=f"{period} IQR",
-                x=wide["Hour"],
-                y=wide.get(f"Q3_{period}", pd.Series()),
-                mode="lines",
-                fill="tonexty",
-                line=dict(color=color_map[period], width=0),
-                opacity=0.2
-            ), row=1, col=c)
-
-            # mean line
-            fig.add_trace(go.Scatter(
-                name=f"{period} Mean",
-                x=wide["Hour"],
-                y=wide.get(f"mean_{period}", pd.Series()),
-                mode="lines",
-                line=dict(color=color_map[period])
-            ), row=1, col=c)
-
-    fig.update_layout(
-        title="IQR + Mean by Direction, Two Periods",
-        hovermode="x unified",
-        template="plotly_white"
     )
-
-    fig.update_xaxes(title_text="Hour of Day", row=1, col=1)
-    fig.update_yaxes(title_text="Volume", row=1, col=1)
-
-    if len(directions)>1:
-        fig.update_xaxes(title_text="Hour of Day", row=1, col=2)
-
+    if location_id:
+        # find the lat/lon of the selected
+        row = df_meta[df_meta["LocationID"]==location_id]
+        if not row.empty:
+            sel_lat = row["LAT"].values[0]
+            sel_lon = row["LONGTD"].values[0]
+            fig.add_trace(go.Scattermap(
+                lat=[sel_lat], lon=[sel_lon],
+                marker=dict(color="red", size=30),
+                mode="markers"
+            ))
     return fig
 
-'''
-# 6) Define callback: when user clicks a marker on the map,
-#    we retrieve the location ID from `clickData` and filter df_traffic
 @app.callback(
-    Output("traffic-graph", "figure"),
-    Input("map-graph", "clickData")
+    Output("main-fig", "figure"),
+    Input("btn-plot", "n_clicks"),
+    State({"type":"trace-name", "index":ALL}, "value"), 
+    State({"type":"trace-dates", "index":ALL}, "start_date"),
+    State({"type":"trace-dates", "index":ALL}, "end_date"),
+    State({"type":"trace-days-of-week", "index":ALL}, "value"),
+    State({"type":"trace-direction","index":ALL}, "value"),
+    State({'type':'trace-quartiles', 'index':ALL}, "value"),
+    State({"type":"trace-enabled","index":ALL}, "value"),
+    State({"type":"trace-store", "index": ALL}, "data")
 )
-def update_traffic_plot(click_data):
-    if click_data is None:
-        return go.Figure().update_layout(title="Select a location on the map")
+def build_figure(n_plot, names, start_dates, end_dates, days_of_weeks, directions, quartiles, enabled, location_store):
+    if n_plot < 1:
+        return go.Figure().update_layout(title="No traces to plot.")
 
-    location_id = click_data["points"][0]["customdata"]
-    atr_name = click_data["points"][0]["text"]
-    # Filter the traffic DataFrame for that location, ignoring lane-level data & focusing on cardinal directions
-    keep_years = [2018, 2019, 2023, 2024]
-    dirs = ['NB','SB','EB','WB']
-    sub = df[
-        (df['Lane'].isna()) &
-        (df['Direction'].notna()) &
-        (df['Direction'].isin(dirs)) &
-        (df['LocationID'] == location_id) &
-        (df['Year'].isin(keep_years))
-    ].copy()
+    fig = go.Figure()
 
-    if sub.empty:
-        return go.Figure().update_layout(title=f"No data for location ID = {location_id}")
-    fig = plot_iqr_bands(sub, atr_name, location_id)
-    return fig
-
-def plot_iqr_bands(df_sub, name, location_id):
-    """
-    df_sub: A DataFrame with [LocationID, Direction, Year, Hour, Weekend, Volume].
-    Returns a go.Figure with 2 subplots: (Direction1, Direction2),
-    each showing Mean & IQR for 2018–2019 vs 2023–2024 (only Weekday data).
-    If only one direction is found, it just populates one subplot.
-    """
-
-    # 1) Weekday-only
-    df_weekday = df_sub[df_sub["Weekend"] == False].copy()
-
-    # 2) Determine which directions exist in this subset
-    #    e.g. NB, SB, EB, WB. We'll pick the first two if there's more than two
-    directions = df_weekday["Direction"].dropna().unique()
-    directions = [d for d in directions if d in ["NB","SB","EB","WB"]]
-
-    if len(directions) == 0:
-        # No recognized directions found
-        fig_empty = go.Figure()
-        fig_empty.update_layout(title="No valid directional data")
-        return fig_empty
-
-    # If more than 2 directions, just take the first 2 for now
-    directions = directions[:2]
-
-    # 3) Make subplots: 1 col, 2 rows
-    #    If only 1 direction, we'll just leave the second subplot mostly blank
-    fig = make_subplots(
-        rows=2, cols=1, 
-        subplot_titles=[f"Direction: {directions[0]}", 
-                        f"Direction: {directions[1]}" if len(directions) > 1 else ""],
-        shared_xaxes=False,
-        shared_yaxes=False,
-        vertical_spacing=0.25
-    )
-
-    # 4) For each direction, compute the stats and add traces
-    for i, direction in enumerate(directions):
-        col_index = 1
-        row_index = i + 1  # subplot col: 1 or 2
-        # Filter to that direction
-        sub_dir = df_weekday[df_weekday["Direction"] == direction].copy()
-
-        if sub_dir.empty:
+    colors = pc.qualitative.Dark24
+    # We'll loop over each trace config and add a line + fill band
+    for i in range(MAX_TABS):
+        data = [names[i], start_dates[i], end_dates[i], days_of_weeks[i], quartiles[i], location_store[i]]
+        if not enabled[i] or None in data:
+            print(f"Skipping plot {i} because not enabled or None is in data")
+            print(data)
             continue
 
-        # Define period
-        sub_dir["Period"] = np.where(
-            sub_dir["Year"].isin([2018,2019]),
-            "2018–2019",
-            "2023–2024"
+        # Filter df by date range, direction, days-of-week
+        mask = (
+            (df["LocationID"] == location_store[i]['location_id']) &
+            (df["Lane"].isna()) &
+            (df["DateTime"] >= start_dates[i]) &
+            (df["DateTime"] <= end_dates[i]) &
+            (df["Direction"] == directions[i]) &
+            (df["DateTime"].dt.dayofweek.isin(days_of_weeks[i]))
         )
+        sub = df[mask].copy()
+        if sub.empty:
+            continue
 
-        # Group (Period, Hour) -> mean, Q1, Q3
-        agg = (
-            sub_dir.groupby(["Period","Hour"])["Volume"]
-                  .agg(
-                      mean="mean",
-                      Q1=lambda x: x.quantile(0.25),
-                      Q3=lambda x: x.quantile(0.75)
-                  )
-                  .reset_index()
-        )
+        rgb = pc.hex_to_rgb(colors[i])
+        # For illustration, let's group by hour-of-day
+        sub["Hour"] = sub["DateTime"].dt.hour
+        grouped = sub.groupby("Hour")["Volume"]
 
-        # Pivot wide
-        wide = agg.pivot(index="Hour", columns="Period", values=["mean","Q1","Q3"])
-        # Flatten columns
-        wide.columns = [f"{lvl0}_{lvl1}" for lvl0,lvl1 in wide.columns]
-        # e.g. ["mean_2018–2019", "mean_2023–2024", "Q1_2018–2019", ...
+        mean_vals = grouped.mean()
+        q_low_vals = grouped.quantile(quartiles[i][0])
+        q_high_vals = grouped.quantile(quartiles[i][1])
 
-        wide = wide.reset_index()  # so "Hour" is a column
+        x_hours = mean_vals.index
 
-        # Add fill bands + mean lines for each period
-        # --- 2018–2019 ---
+        # Add Q lower
         fig.add_trace(go.Scatter(
-            name="2018–2019 (Q1)",
-            x=wide["Hour"], 
-            y=wide.get("Q1_2018–2019", pd.Series()),  # fallback if col missing
-            mode="lines",
+            x=x_hours, y=q_low_vals,
             line=dict(width=0),
-            showlegend=False
-        ), row=row_index, col=col_index)
-
+            showlegend=False,
+            name=f"{names[i]} Qlow"
+        ))
+        # Add Q high
         fig.add_trace(go.Scatter(
-            name="2018–2019 IQR",
-            x=wide["Hour"],
-            y=wide.get("Q3_2018–2019", pd.Series()),
-            mode="lines",
-            fill="tonexty",
-            showlegend=i==0,
-            line=dict(color="blue", width=0),
-            opacity=0.1
-        ), row=row_index, col=col_index)
-
-        fig.add_trace(go.Scatter(
-            name="2018–2019 Mean",
-            x=wide["Hour"],
-            y=wide.get("mean_2018–2019", pd.Series()),
-            mode="lines",
-            showlegend=i==0,
-            line=dict(color="blue")
-        ), row=row_index, col=col_index)
-
-        # --- 2023–2024 ---
-        fig.add_trace(go.Scatter(
-            name="2023–2024 (Q1)",
-            x=wide["Hour"],
-            y=wide.get("Q1_2023–2024", pd.Series()),
-            mode="lines",
+            x=x_hours, y=q_high_vals,
+            fill='tonexty',  # fill area between previous trace
             line=dict(width=0),
-            showlegend=False
-        ), row=row_index, col=col_index)
-
+            fillcolor= f'rgba({rgb[0]},{rgb[1]},{rgb[2]},0.2)',
+            name=f"{names[i]} band"
+        ))
+        # Add mean line
         fig.add_trace(go.Scatter(
-            name="2023–2024 IQR",
-            x=wide["Hour"],
-            y=wide.get("Q3_2023–2024", pd.Series()),
-            mode="lines",
-            fill="tonexty",
-            showlegend=i==0,
-            line=dict(color="red", width=0),
-            opacity=0.1
-        ), row=row_index, col=col_index)
+            x=x_hours, y=mean_vals,
+            mode='lines',
+            line=dict(width=2, color=colors[i]),
+            name=f"{names[i]} mean"
+        ))
 
-        fig.add_trace(go.Scatter(
-            name="2023–2024 Mean",
-            x=wide["Hour"],
-            y=wide.get("mean_2023–2024", pd.Series()),
-            mode="lines",
-            showlegend=i==0,
-            line=dict(color="red")
-        ), row=row_index, col=col_index)
-
-    # 5) Layout
     fig.update_layout(
-        title=f"ATR ID: {location_id} Weekday Traffic: Mean & IQR (2018–2019 vs 2023–2024) for {name}",
-        hovermode="x unified",
-        template="plotly_white",
-        height=600,
-        width=1000,
+        title="Custom Multi-Trace IQR Plot",
+        xaxis=dict(title="Hour of Day"),
+        yaxis=dict(title="Volume"),
+        hovermode="x unified"
     )
-
-    # Shared axis labels
-    fig.update_xaxes(title_text="Hour of Day", row=1, col=1)
-    fig.update_yaxes(title_text="Volume", row=1, col=1)
-
-    # If two directions, add x-label for second subplot
-    if len(directions) > 1:
-        fig.update_xaxes(title_text="Hour of Day", row=1, col=2)
-
     return fig
-'''
 
 if __name__ == "__main__":
     app.run_server(debug=True)
