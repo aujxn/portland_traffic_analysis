@@ -122,6 +122,7 @@ def make_tab_content(idx):
     ])
 
 app = dash.Dash(__name__)
+server = app.server
 
 # We create 5 tabs up front
 tabs_children = []

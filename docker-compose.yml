@@ -1,0 +1,6 @@
+services:
+  dash-app:
+    build: .
+    ports:
+      - "8050:8050"
+    restart: always
