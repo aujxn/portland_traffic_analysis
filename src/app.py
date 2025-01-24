@@ -26,7 +26,6 @@ valid_ids = df['LocationID'].unique()
 df_meta = df_meta[df_meta['LocationID'].isin(valid_ids)].copy()
 
 def trace_form(idx):
-# Some form fields
     return [
         html.H1("No ATR location selected", id={"type":"selected-name", "index":idx}),
         html.H3("Select a location on the map to plot", id={"type":"selected-desc", "index":idx}),
@@ -80,7 +79,7 @@ def trace_form(idx):
         dcc.RadioItems(
             id={"type":"trace-direction","index":idx},
             options=[{"label":d,"value":d,"disabled":True} for d in ["NB","SB","EB","WB"]],
-            value="NB"
+            value=""
         ),
         html.Br(),
 
@@ -109,8 +108,8 @@ def make_tab_content(idx):
         html.Div(
             dcc.Graph(
                 id={"type": "trace-map", "index": idx},
-                figure=go.Figure(),  # we fill it later
-                style={"width":"95%"},
+                figure=go.Figure(),
+                style={"height":"95%", "width":"95%"},
                 config={"scrollZoom": False}
             ),
             style={'display': 'inline-block', 'height':'600px', 'width': '40%', 'vertical-align': 'top'}
@@ -154,6 +153,7 @@ app.layout = html.Div(
     #Output({"type":"trace-dates","index":MATCH}, "min_date_allowed"),
     #Output({"type":"trace-dates","index":MATCH}, "max_date_allowed"),
     Output({"type":"date-label","index":MATCH}, "children"),
+    Output({"type":"trace-enabled","index":MATCH}, "value"),
     Input({"type":"trace-map","index":MATCH}, "clickData"),
     State({"type":"trace-store", "index":MATCH}, "data")
 )
@@ -169,7 +169,7 @@ def map_click_update(clickData, store_data):
         # no update yet
         # build a default figure from store_data for this tab
         #return store_data, build_map_figure(), name, desc, direction_options, min_date, max_date, date_label
-        return store_data, build_map_figure(), name, desc, direction_options, date_label
+        return store_data, build_map_figure(), name, desc, direction_options, date_label, [False]
 
     # user clicked a marker. store location in store_data for this tab
     if clickData:
@@ -193,7 +193,7 @@ def map_click_update(clickData, store_data):
 
     fig = build_map_figure(location_id=store_data["location_id"] if store_data else None)
     #return store_data, fig, name, desc, direction_options, min_date, max_date, date_label
-    return store_data, fig, name, desc, direction_options, date_label
+    return store_data, fig, name, desc, direction_options, date_label, [True]
 
 def build_map_figure(location_id=None):
     # create a scattermapbox of all ATR points
