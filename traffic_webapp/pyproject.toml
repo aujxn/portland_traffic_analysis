@@ -1,0 +1,22 @@
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "traffic_webapp"
+version = "0.1.0"
+description = "A `plotly-dash` powered web application for self-directed data exploration."
+authors = [{name = "Austen Nelson", email = "ajn6@pdx.edu"}]
+license = {text = "MIT"}
+dependencies = [
+    "plotly",
+    "dash",
+    "dash-bootstrap-components",
+    "numpy",
+    "polars",
+    "gunicorn",
+    "traffic_data_analysis @ file://../traffic_data_analysis"
+]
+
+[tool.setuptools]
+packages = ["traffic_webapp"]

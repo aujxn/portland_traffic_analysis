@@ -1,0 +1,26 @@
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "traffic_data_analysis"
+version = "0.1.0"
+description = "A suite of tools for cleaning / wrangling ODOT ATR data and running basic statistical analysis."
+authors = [{name = "Austen Nelson", email = "ajn6@pdx.edu"}]
+license = {text = "MIT"}
+dependencies = [
+    "numpy",
+    "scipy",
+    "scikit-learn",
+    "matplotlib",
+    "polars",
+]
+
+[project.optional-dependencies]
+nn = ["torch"]  # Optional neural network dependency (off by default, is very large)
+
+[project.scripts]
+fetch_data = "traffic_data_analysis.__init__:download_data"
+
+[tool.setuptools]
+packages = ["traffic_data_analysis"]

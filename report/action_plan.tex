@@ -1,0 +1,60 @@
+
+\documentclass{article}
+\usepackage{geometry}
+\geometry{a4paper, margin=1in}
+\title{Action Plan for Traffic Analysis Project}
+\author{Suru, Austen}
+\date{\today}
+
+\begin{document}
+
+\maketitle
+
+\section{Project Goals}
+The primary objective of this project is to analyze highway traffic count data to identify changes in traffic patterns pre- and post-pandemic, with a specific focus on the I-5 and Glenn Jackson bridges. The Oregon Department of Transportation (ODOT) seeks a comprehensive, data-driven analysis using historical traffic data from Automatic Traffic Recorders (ATR). The project will address the following key questions:
+
+\begin{itemize}
+    \item How have peak traffic periods changed in terms of structure (flatter, sharper, later, or earlier) at these key locations?
+    \item How has daily traffic demand shifted across different days of the week at these bridges?
+    \item Are there distinct trends between these two major highway crossings?
+\end{itemize}
+
+\section{Available Data Sources}
+\subsection{Automatic Traffic Recorder (ATR) Data}
+ATR data provides 24/7 traffic counts at specific highway locations across Oregon and has been curated by ODOT’s count unit for high reliability. The primary analysis will focus on the data from the I-5 and Glenn Jackson bridges, which is part of an aggregated dataset from 12 locations accounting for a total of 3.25 million hours of directional traffic data.
+
+\section{Methodology}
+The analysis will be conducted at three temporal resolutions: monthly, daily, and hourly.
+
+\subsection{Daily Resolution Analysis}
+To quantify full-day traffic pattern differences between pre- and post-pandemic periods, we will employ Maximum Mean Discrepancy (MMD). This statistical test is useful for comparing distributions by measuring differences in their embeddings in a reproducing kernel Hilbert space. For this application, we propose using the Radial Basis Function (RBF) kernel, as it is well-suited for capturing subtle differences in traffic patterns by emphasizing both local and global variations in the data.
+
+\subsection{Hourly Resolution Analysis}
+To evaluate shifts in peak traffic structures, we will utilize Generalized Additive Models (GAM). These models will help determine:
+\begin{itemize}
+    \item Whether peak periods have flattened or become sharper.
+    \item Whether peak traffic times have shifted earlier or later in the day.
+\end{itemize}
+
+\subsection{Comparative Analysis}
+Traffic data from 2018 and 2019 (pre-pandemic) will be compared against 2023 and 2024 (post-pandemic) specifically for the I-5 and Glenn Jackson bridges to assess changes in traffic patterns. The analysis will include:
+\begin{itemize}
+    \item Time series comparisons at monthly, daily, and hourly levels.
+    \item Statistical hypothesis testing to quantify significant shifts in travel behavior.
+\end{itemize}
+
+\section{Project Timeline}
+The project will follow a structured timeline with key milestones:
+
+\begin{itemize}
+    \item \textbf{Week 1-2:} Data acquisition and cleaning.
+    \item \textbf{Week 3-4:} Preliminary exploratory data analysis and visualization.
+    \item \textbf{Week 5-8:} Implementation of MMD for daily traffic pattern comparisons and application of GAM for peak hour structure analysis.
+    \item \textbf{Week 9: 3/5} Synthesis of results and preparation of interim findings.
+    \item \textbf{Week 10: 3/12} Final report preparation and presentation to ODOT.
+\end{itemize}
+
+\section{Conclusion}
+While this analysis will provide a detailed view of traffic pattern changes, making interpretable statements about the underlying causes of these differences may be challenging without additional data, such as vehicle speed or travel time. These factors could offer more insight into how travel behavior has evolved beyond just count-based metrics.
+
+\end{document}
