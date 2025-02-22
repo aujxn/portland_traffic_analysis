@@ -1,22 +1,71 @@
 \documentclass{article}
-\usepackage{geometry}
-\usepackage{lipsum}
-\usepackage{amsfonts}
-\usepackage{amsmath}
+\usepackage{titling}
 \usepackage{graphicx}
-\usepackage{epstopdf}
-\usepackage{algorithmic}
-\usepackage{panayot}
-\geometry{a4paper, margin=1in}
-\title{Bayesian Generalized Additive Model}
-\author{Austen}
+\usepackage{caption}
+\usepackage{subcaption}
+\graphicspath{{graphics/}{../traffic_data_analysis/traffic_data_analysis/plots/}}
+
+\pretitle{
+  \begin{center}
+  \huge
+  \includegraphics[width=10cm]{graphics/PSU_logo_transparent.png}\\[\bigskipamount]
+}
+\posttitle{\end{center}}
+\usepackage{amsfonts}
+\usepackage{booktabs}
+\usepackage{longtable}
+\usepackage{array}
+\usepackage{multirow}
+\usepackage{wrapfig}
+\usepackage{float}
+\usepackage{colortbl}
+\usepackage{pdflscape}
+\usepackage{tabu}
+\usepackage{threeparttable}
+\usepackage{xcolor}
+\usepackage{soul}
+\usepackage{fancyhdr}
+\usepackage{hyperref}
+\usepackage{float}
+\pagestyle{fancy}
+\rhead{\includegraphics[width = .05\textwidth]{graphics/psulogo2.jpg}}
+\usepackage{geometry}
+\geometry{a4paper, margin=0.75in}
+
+\title{Portland Traffic Analysis: Final Report}
+\author{
+  Xu, Suru\\
+  \texttt{suru@pdx.edu}
+  \and
+  Nelson, Austen\\
+  \texttt{ajn6@pdx.edu}
+}
+
 \date{\today}
 
 \begin{document}
 
 \maketitle
 
-\section{Generalized Additive Model (GAM)}
+\tableofcontents
+
+\section{Executive Summary}
+
+\section{Introduction}
+
+\section{Background}
+
+\section{Data}
+
+The data we analyzed consists of vehicle counts over hourly time periods at 12 different highway locations, each consisting of 2 opposite directions (either NB/SB or EB/WB). Some locations have many more years available than others but in total there are about 3.2 million hours of data recorded over the 24 location and direction combinations. For a visual of the data coverage for each location / direction combination, see figure \ref{fig:data_availability}.
+
+Many trends and area specific patterns can be easily identified by simply looking at the median values in the data. Table \ref{tab:medians} presents an approximation to weekday peak-time and peak-volume based on cubic periodic spline interpolation of hourly medians. 
+
+General visible trends seem to be a slightly later peak traffic time in the mornings and location dependent changes in afternoon peak times. The peak volume is lower post-Covid all across the board, with very few exceptions outside of data availability issues. Lastly, looking at the occasional near-hour shift for some peak times (see Vista Ridge EB 2018, Wilsonville SB 2024, and Interstate Bridge NB 2024) indicates that there are potentially issues with Day Light Savings inconsistencies in the dataset. Duplicated hours (UTC time / no timezone) in the raw data additionally supports this hypothesis; so large changes in peak times may not be real in some cases.
+
+\section{Methods}
+
+\subsection{Generalized Additive Model (GAM)}
 
 We have a dataset $D := \{x_i, y_i\}_{i=1}^n$, where $x_i$ is an hour in the day and $y_i$ is the observed number of cars in that hour. As expected, the correlation between the traffic volume and the time of the day is strong, with clear distinct patterns emerging for a different locations/directions and days of the week. To isolate different variables to make conclusions about changes in hourly traffic dynamics, we seek to create a simple model to summarize characteristics of interest. In particular, we are interested in how the rush hour has changed before and after the 2019 pandemic.
 
@@ -24,5 +73,60 @@ One of the most simple but powerful models in data science is linear regression,
 
 The GAM literature and software packaging calls these smooth function `smoothers' and many different functions are provided, but we are mostly interested in splines. Spline fitting is similar to fitting polynomials to the data but are generally easier to work with for a variety of reasons (see Runge effect, sklearn example). 
 
+\subsection{Maximum Mean Discrepancy (MMD)}
+
+\section{Results}
+
+\subsection{Generalized Additive Model (GAM)}
+
+\subsection{Maximum Mean Discrepancy (MMD)}
+
+\section{Conclusions}
+
+\appendix
+
+\section{Median Peak Time and Volumes}
+
+\definecolor{Gray}{gray}{0.9}
+\newcolumntype{g}{>{\columncolor{Gray}}r}
+\begin{figure}[H]
+\captionof{table}{Weekday Peak Time Table} \label{tab:medians} 
+\begin{tabular}{l l *{9}{g}}
+    \toprule
+    \rowcolor{white}
+    \multicolumn{3}{c}{\textbf{Location Info}} & 
+    \multicolumn{4}{c}{\textbf{Median Peak Time}} & 
+    \multicolumn{4}{c}{\textbf{Median Peak Volume}}\\
+
+    \cmidrule(lr){1-3} \cmidrule(lr){4-7} \cmidrule(lr){8-11}
+
+    \rowcolor{white}
+    \textbf{ID} & \textbf{Name} & \textbf{Dir} & 
+    \textbf{2018} & \textbf{2019} & \textbf{2023} & \textbf{2024} &
+    \textbf{2018} & \textbf{2019} & \textbf{2023} & \textbf{2024}\\ 
+
+    \cmidrule(lr){1-3} \cmidrule(lr){4-7} \cmidrule(lr){8-11}
+
+    \input{median_table.txt}
+\end{tabular}\par 
+\bigskip 
+    Hourly median traffic volume for each entry (location, direction, year) for weekdays is interpolated with a cubic spline to find approximate peak traffic time.
+\end{figure}
+
+\section{Data Availability}
+
+\begin{figure}[H] 
+    \centering
+    \includegraphics[width=0.9\textwidth]{missing_data.png}
+    \caption{Red indicates missing data, opacity indicates how much of that week is missing. This doesn't account for ``0'' data which is technically missing and misrepresented.}
+    \label{fig:data_availability}
+\end{figure}
+
+\section{Smooth Hourly Trends} 
+
+These plots provide a visual for similar data presented in table \ref{tab:medians} but includes every year available in the dataset with quantile shading. Each line is the periodic cubic spline interpolation of the hourly medians/quantiles for each (location, direction, weekday/weekend) tuple. Some strange data issues become apparent in these plots, but they are almost entirely only in years we aren't concerned with in this analysis.
+\input{quantile_figures.txt}
+
+\bibliography{references}
 \end{document}
 

@@ -105,6 +105,7 @@ def plot_hourly_quartiles_by_years(info, group: pl.DataFrame, df_meta: pl.DataFr
     out_path = PLOTS_DIR / out_fname
     plt.savefig(out_path, dpi=150)
     plt.close()
+    return out_fname
 
 def missing_data_visual(df_traffic: pl.DataFrame, df_meta: pl.DataFrame):
     df_traffic = df_traffic.with_columns(pl.col("DateTime").dt.replace_time_zone(None))
