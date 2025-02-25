@@ -2,7 +2,6 @@ import polars as pl
 import numpy as np
 from scipy.interpolate import CubicSpline
 from datetime import time
-from jinja2 import Template
 from traffic_data_analysis.utils import load_directional_hourly
 
 df_traffic, df_meta  = load_directional_hourly()

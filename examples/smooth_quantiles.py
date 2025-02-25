@@ -11,7 +11,7 @@ def all_yearly_plots(df_traffic: pl.DataFrame, df_meta: pl.DataFrame):
     return files
 
 def build_subfigure(files):
-    subfig = lambda filename : "\\begin{{subfigure}}[b]{{0.45\\textwidth}}\n\t\t\\includegraphics[width=\\textwidth]{{{}}}\n\t\\end{{subfigure}}".format(filename)
+    subfig = lambda filename : "\\begin{{subfigure}}{{0.45\\textwidth}}\n\t\t\\includegraphics[width=\\textwidth]{{{}}}\n\t\\end{{subfigure}}".format(filename)
 
     return f"\\begin{{figure}}[htbp]\n\t\\centering\n\t{subfig(files[0])}\n\t\\hfill\n\t{subfig(files[1])}\n\n\t{subfig(files[2])}\n\t\\hfill\n\t{subfig(files[3])}\n\\end{{figure}}"
 

@@ -240,6 +240,8 @@ def build_gam_model(df: pl.DataFrame):
     # Define number of knots for each variable
     n_knots_hour = 15
     n_knots_month = 4
+    knots_interaction = np.array([0., 4., 6., 8., 10., 15., 17., 19., 24.])
+    n_knots_interaction = len(knots_interaction)
 
     # Convert Polars dataframe to NumPy for sklearn compatibility
     hour_values = df.select("Hour").to_numpy()
@@ -254,12 +256,23 @@ def build_gam_model(df: pl.DataFrame):
     )
     X_hour = spline_transformer_hour.fit_transform(hour_values)
 
+    # Create periodic cubic spline basis interaction
+    spline_transformer_interaction = SplineTransformer(
+        n_knots=n_knots_hour,
+        degree=3,
+        knots=knots_interaction[:, None],
+        extrapolation="periodic",
+        include_bias=False
+    )
+    X_interaction = spline_transformer_interaction.fit_transform(hour_values)
+
     # Create periodic cubic spline basis for Month
     spline_transformer_month = SplineTransformer(
         n_knots=n_knots_month,
         degree=3,
         knots=np.linspace(0, 12, n_knots_month)[:, None],
-        extrapolation="periodic"
+        extrapolation="periodic",
+        include_bias=False
     )
     X_month = spline_transformer_month.fit_transform(month_values)
 
@@ -270,17 +283,18 @@ def build_gam_model(df: pl.DataFrame):
     post2020_values = df["post2020"].to_numpy()
 
     # Interaction: multiply hour splines by post2020 indicator
-    X_hour_interaction = X_hour * post2020_values[:, None]
+    X_interaction = X_interaction * post2020_values[:, None]
 
     # Assemble design matrix
-    X_design = np.concatenate([X_hour, X_hour_interaction, X_month], axis=1)
+    X_design = np.concatenate([X_hour, X_interaction, X_month], axis=1)
     y = df["Volume"].to_numpy()
 
     # Fit model
-    model = ARDRegression()
+    #model = ARDRegression(verbose=True, fit_intercept=False)
+    model = Ridge(10., fit_intercept=False)
     model.fit(X_design, y)
 
-    return model, spline_transformer_hour, spline_transformer_month, n_knots_hour, n_knots_month
+    return model, spline_transformer_hour, spline_transformer_interaction, spline_transformer_month, n_knots_hour, n_knots_interaction, n_knots_month
 
 def plot_gam_model(model, spline_transformer_hour, spline_transformer_month, n_knots_hour, n_knots_month):
     """

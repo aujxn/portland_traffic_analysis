@@ -1,4 +1,5 @@
 import polars as pl
+from datetime import datetime
 from traffic_data_analysis.config import DATA_DIR, DATA_FILE
 
 import logging
@@ -134,3 +135,91 @@ def wrangle() -> pl.DataFrame:
     ])
 
     return df_long
+
+def filter_bad_directional(df: pl.DataFrame) -> pl.DataFrame:
+    print(df.height)
+    df = df.filter(pl.col('Volume') > 0)
+    bad = [
+            # Interstate bride SB has very low numbers from July onward in 2018, maybe cause of construction but skews analysis a lot
+            (
+                26004, 
+                "SB",
+                datetime(2018, 7, 1),
+                datetime(2018, 12, 31)
+            ),
+            # Troutdale both directions 2020 data is broken almost the whole year
+            (
+                26001, 
+                None,
+                datetime(2020, 1, 1),
+                datetime(2020, 10, 31)
+            ),
+            # Troutdale both directions 2013 only includes a day or two.. seems weird
+            (
+                26001, 
+                None,
+                datetime(2013, 1, 1),
+                datetime(2013, 12, 31)
+            ),
+            # Lents from December 2021 through November 2022 is broken both directions
+            (
+                26001, 
+                None,
+                datetime(2021, 12, 1),
+                datetime(2022, 11, 30)
+            ),
+            # Stafford 2007 seems completely broken both directions
+            (
+                3016, 
+                None,
+                datetime(2007, 1, 1),
+                datetime(2007, 12, 31)
+            ),
+            # Stafford 2020 Jan, Feb, Oct seems completely broken both directions
+            (
+                3016, 
+                None,
+                datetime(2020, 1, 1),
+                datetime(2020, 3, 1)
+            ),
+            (
+                3016, 
+                None,
+                datetime(2020, 10, 1),
+                datetime(2020, 10, 31)
+            ),
+            # Stafford 2022 July seems completely broken NB
+            (
+                3016, 
+                "NB",
+                datetime(2022, 7, 1),
+                datetime(2022, 7, 31)
+            ),
+            # North Plains 2007 only contains a single day...
+            (
+                34007, 
+                None,
+                datetime(2007, 1, 1),
+                datetime(2007, 12, 31)
+            )
+        ]
+
+    print(df.height)
+    for id, dir, start, end in bad:
+        if dir is not None:
+            df = df.filter(
+                    ~(
+                        (pl.col("DateTime").dt.date().is_between(start, end)) & 
+                        (pl.col("LocationID") == id) &
+                        (pl.col("Direction") == dir)
+                        )
+                    )
+        else:
+            df = df.filter(
+                    ~(
+                        (pl.col("DateTime").dt.date().is_between(start, end)) & 
+                        (pl.col("LocationID") == id)
+                        )
+                    )
+        print(df.height)
+    return df

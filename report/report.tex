@@ -51,27 +51,74 @@
 
 \section{Executive Summary}
 
-\section{Introduction}
+\section{Introduction and Background}
 
-\section{Background}
+The primary objective of this project is to analyze highway traffic count data to identify changes in traffic patterns pre- and post-pandemic, with a specific focus on the I-5 and Glenn Jackson bridges. The Oregon Department of Transportation (ODOT) seeks a comprehensive, data-driven analysis using historical traffic data from Automatic Traffic Recorders (ATR). The report will address the following key questions:
 
+\begin{itemize}
+    \item How have peak traffic periods changed in terms of structure (flatter, sharper, later, or earlier throughout the day) at these key locations?
+    \item How has daily traffic demand shifted across different days of the week at these bridges?
+    \item Are there distinct trends between these two major highway crossings?
+\end{itemize}
+
+The data provided 
 \section{Data}
 
-The data we analyzed consists of vehicle counts over hourly time periods at 12 different highway locations, each consisting of 2 opposite directions (either NB/SB or EB/WB). Some locations have many more years available than others but in total there are about 3.2 million hours of data recorded over the 24 location and direction combinations. For a visual of the data coverage for each location / direction combination, see figure \ref{fig:data_availability}.
+ATR data provides 24/7 traffic volume at specific highway locations across Oregon and has been curated by ODOT’s monitoring unit for high reliability. The data consists of vehicle counts over hourly time periods at 12 different highway locations, each consisting of 2 opposite directions (either NB/SB or EB/WB). Some locations have many more years available than others, but in total there are about 3.25 million hours of data recorded over the 24 location and direction combinations.
 
 Many trends and area specific patterns can be easily identified by simply looking at the median values in the data. Table \ref{tab:medians} presents an approximation to weekday peak-time and peak-volume based on cubic periodic spline interpolation of hourly medians. 
 
-General visible trends seem to be a slightly later peak traffic time in the mornings and location dependent changes in afternoon peak times. The peak volume is lower post-Covid all across the board, with very few exceptions outside of data availability issues. Lastly, looking at the occasional near-hour shift for some peak times (see Vista Ridge EB 2018, Wilsonville SB 2024, and Interstate Bridge NB 2024) indicates that there are potentially issues with Day Light Savings inconsistencies in the dataset. Duplicated hours (UTC time / no timezone) in the raw data additionally supports this hypothesis; so large changes in peak times may not be real in some cases.
+General visible trends seem to be a slightly later peak traffic time in the mornings and location dependent changes in afternoon peak times. The peak volume is lower post-Covid all across the board, with very few exceptions outside of data availability issues. 
+
+\subsection{Data Quality}
+Overall the provided dataset is high quality and quite complete. For a visual representation of the time coverage for each location / direction combination, see figure \ref{fig:data_availability}. The only issues with data quality we discovered in our analysis fall into two main categories:
+
+\begin{enumerate}
+    \item Daylight Savings (DST) Inconsistencies 
+
+        The raw provided data is given in Coordinated Universal Time (UTC) format, which does not observe any DST seasonal changes. Filtering the data for duplicated hours results gives occasional duplicates at midnight in April (before 2006) and March suggesting that some timestamps were recorded or converted improperly. A visual of one of the examples where this happens is shown in 
+        %\ref{fig:dst_example}, 
+        where counts from March through November are clearly shifted exactly one hour forward during the early morning hours when the traffic is most consistent. For most of the analysis we discuss this shouldn't pose a huge issue, but table \ref{tab:medians} approximates what time peak rush hour happens based on hourly medians and occasionally shows a drastic near hour shift of the peak time (see Vista Ridge EB 2018, Wilsonville SB 2024, and Interstate Bridge NB 2024). This makes it difficult to make conclusions about shifts in the traffic structure without more careful analysis. Fortunately, the morning traffic for almost every location is extremely consistent and predictable and identifying and correcting these errors should be possible if that is of interest. 
+
+    \item Under-Reported and Malformed Data
+
+        During the initial interview, the client warned that some of the data is lower than it should be as a result of sensor issues. The client provided us a report of which locations and time periods have such issues and specifying that some data was estimated. One example of estimated data is I5 bridge SB for the year 2018. During this time there was a construction project so traffic could potentially be lower, but reported (potentially estimated) values are so low that the period is not useful for analysis. This is immediately clear in the table \ref{tab:medians} for the Interstate Bridge 2018 median entry. This is a primary location and time period of focus for our analysis, so this data is omitted from the models we create. 
+
+        Another example of malformed data is periods of time with many zero values. In the reliability report it is stated that the 2024 Vista Ridge Tunnel data is reliable, but from 10-07 to 12-23 there are 1440 hourly entries with 0 and 1872 non-zero hourly entries.
+
+        One suggestion to address some of these issues would be to add an additional column(s) to the curated data indicating low reliability or estimated entries. This would enable easy filtering when creating models and comparing model results with or without estimated or unreliable data.
+\end{enumerate}
+
+A complete listing of potential issues we found in the analysis can be found in appendix \ref{app:data_issues}. 
 
 \section{Methods}
 
 \subsection{Generalized Additive Model (GAM)}
 
-We have a dataset $D := \{x_i, y_i\}_{i=1}^n$, where $x_i$ is an hour in the day and $y_i$ is the observed number of cars in that hour. As expected, the correlation between the traffic volume and the time of the day is strong, with clear distinct patterns emerging for a different locations/directions and days of the week. To isolate different variables to make conclusions about changes in hourly traffic dynamics, we seek to create a simple model to summarize characteristics of interest. In particular, we are interested in how the rush hour has changed before and after the 2019 pandemic.
+One of the most simple but ubiquitous models in data science is linear regression, but as the name suggests isn't suitable for capturing non-linear relationships in data on its own. A common technique to address this constraint is to choose a suitable non-linear mapping such that the mapped inputs can be modeled with linear regression. GAMs are a class of Generalized Linear Models which provides a framework for selecting such a mapping as the sum over \emph{smooth} functions (often called smoothers). The assumptions for using this kind of model go hand in hand with its additive and smooth properties:
+\begin{enumerate}
+    \item The target (output) variable \emph{varies smoothly} in response to the explanatory (input) variables. 
+    \item The function we are modelling can be decomposed into a sum of functions. 
+\end{enumerate}
 
-One of the most simple but powerful models in data science is linear regression, but as the name suggests isn't suitable for capturing non-linear relationships in data on its own. A common technique to address this constraint is to choose a suitable non-linear mapping such that the mapped inputs can be modeled with linear regression. GAMs are a class of Generalized Linear Models which provides a framework for selecting such a mapping as the sum over \emph{smooth} functions. The smoothness of these functions is desirable for our application because traffic volume as a function of time is ``smooth'' and we may be interested in rate characteristics of this function which can be obtained through differentiation (since smooth functions are differentiable). 
+Isolating the data to a single location / direction and only considering weekday values, the target variable we model is the hourly traffic counts and explanatory variables which this target varies smoothly with are the hour of the day and month of the year. Then we can model the changes in hourly traffic by creating additional interaction terms between hour of day and categorical variables of interest such as before and after Covid or day of the week.
 
-The GAM literature and software packaging calls these smooth function `smoothers' and many different functions are provided, but we are mostly interested in splines. Spline fitting is similar to fitting polynomials to the data but are generally easier to work with for a variety of reasons (see Runge effect, sklearn example). 
+One of the primary reasons to use GAMs is that due to the additive nature the parameters associated with variables of interest give easily interpretable ways to explain dependency effects between variables.
+The non-linear smoothers we use are splines. Spline fitting is similar to polynomial fitting, but are generally easier to work with for a variety of reasons (see Runge effect, sklearn example). 
+
+Our GAM model is as follows:
+$$f(h, m, p) = s_1(h) + s_2(m) + s_3(ph)$$
+where $h$ is the hour of the day, $m$ is the month of the year, and $p$ is $0$ before Covid or $1$ after. The functions $s_i$ are the splines we need to determine. Each $s_i$ can be decomposed into
+$$s_i(x) = w_i^T \hat s_i(x)$$
+where $\hat s_i$ is the nonlinear mapping of the explanatory variable $x$ onto a chosen spline basis. \verb|scikit-learn| is a popular \verb|Python| machine learning library which has APIs to easily create the $\hat s_i$ mappings from the desired parameterizations (polynomial order and knot locations). Once the $\hat s_i$ are determined, the problem is traditional (regularized) linear regression to solve for each $w_i$ and the resulting $s_i$ give interpretable \emph{partial dependence} functions for their associated variables.
+
+More advanced GAM specific packages such as \verb|R|'s \verb|mgcv| and \verb|gam| or \verb|Python|'s \verb|PyGAM| have optimization algorithms to determine the appropriate parameters for the smoothing functions automatically. If our model was more complex or included more explanatory variables and interactions, it may be necesarry to use such hyper-parameter tuning. After some experimentation we found the periodic cubic splines with knots:
+\begin{itemize}
+    \item 15 uniform knots for $\hat s_1$ 
+    \item 4 uniform knots for $\hat s_2$ 
+    \item knots located at $(0, 4, 6, 8, 10, 15, 17, 19, 24)$ for $\hat s_3$
+\end{itemize}
+generalized well for our data. The knots for $\hat s_3$ were chosen because we are primarily interested in the effect on peak traffic periods, so we choose the knots to be more densely located during these times to give the model more ability to express differences in the interaction while limiting negative effects of over-paramaterizing the model.
 
 \subsection{Maximum Mean Discrepancy (MMD)}
 
@@ -113,6 +160,10 @@ The GAM literature and software packaging calls these smooth function `smoothers
     Hourly median traffic volume for each entry (location, direction, year) for weekdays is interpolated with a cubic spline to find approximate peak traffic time.
 \end{figure}
 
+\section{GAM Figures}
+
+\input{gam_figures.txt}
+
 \section{Data Availability}
 
 \begin{figure}[H] 
@@ -122,11 +173,11 @@ The GAM literature and software packaging calls these smooth function `smoothers
     \label{fig:data_availability}
 \end{figure}
 
-\section{Smooth Hourly Trends} 
+\section{Data Issues Deep Dive by Locations} \label{app:data_issues}
 
 These plots provide a visual for similar data presented in table \ref{tab:medians} but includes every year available in the dataset with quantile shading. Each line is the periodic cubic spline interpolation of the hourly medians/quantiles for each (location, direction, weekday/weekend) tuple. Some strange data issues become apparent in these plots, but they are almost entirely only in years we aren't concerned with in this analysis.
 \input{quantile_figures.txt}
 
-\bibliography{references}
+%\bibliography{references}
 \end{document}
 
