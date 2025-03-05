@@ -40,6 +40,11 @@ def gam_and_plot(info, group, df_meta):
     w_interaction = rest[:n_knots_interaction-2]
     w_month = rest[n_knots_interaction-2:]
 
+    interaction_cov = model.sigma_[n_knots_hour-1:,n_knots_hour-1:]
+    interaction_cov = interaction_cov[:n_knots_interaction-2,:n_knots_interaction-2]
+
+    #month_cov = model.sigma_[n_knots_interaction-2:,n_knots_interaction-2:]
+    #month_cov = model.sigma_[:n_knots_interaction-2,:n_knots_interaction-2]
     dense_hours = np.linspace(0, 24, 100).reshape(-1, 1)
 
     X_hour = spline_hour.transform(dense_hours)
@@ -47,6 +52,8 @@ def gam_and_plot(info, group, df_meta):
 
     X_hour_pd = spline_interaction.transform(dense_hours)
     interaction_effect = np.dot(X_hour_pd, w_interaction)
+    #interaction_variance = X_hour_pd @ interaction_cov @ X_hour_pd.T
+    interaction_stddev = np.sum(np.matmul(X_hour_pd, interaction_cov) * X_hour_pd, axis=1) ** 0.5
 
     fig, axs = plt.subplots(3, 1, figsize=(12, 9))
 
@@ -80,6 +87,9 @@ def gam_and_plot(info, group, df_meta):
     axs[0].grid(True, alpha=0.3)
 
     axs[1].plot(dense_hours, interaction_effect, label='$s_2$', color='darkred')
+    lower_curve = interaction_effect - interaction_stddev*2.
+    upper_curve = interaction_effect + interaction_stddev*2.
+    axs[1].fill_between(dense_hours.flatten(), lower_curve, upper_curve, alpha=0.2, color='darkred', label='95% confidence')
     axs[1].axhline(y=0.0, color='b', linestyle='--')
     axs[1].set_title("Partial Dependence: Interaction Term (Post-Covid Hourly Effect)")
     axs[1].legend()

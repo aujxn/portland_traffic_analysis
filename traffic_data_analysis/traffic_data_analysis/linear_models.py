@@ -85,8 +85,6 @@ def gam_bayes(location_id, direction, start='2018-01-01', end='2025-01-01', epsi
     filtered_df['Hour'] = X
     #y = np.log1p(y)
 
-
-    
     param = 1e-6
     alpha_1 = param 
     alpha_2 = param 
@@ -290,8 +288,8 @@ def build_gam_model(df: pl.DataFrame):
     y = df["Volume"].to_numpy()
 
     # Fit model
-    #model = ARDRegression(verbose=True, fit_intercept=False)
-    model = Ridge(10., fit_intercept=False)
+    model = ARDRegression(verbose=True, fit_intercept=False)
+    #model = Ridge(10., fit_intercept=False)
     model.fit(X_design, y)
 
     return model, spline_transformer_hour, spline_transformer_interaction, spline_transformer_month, n_knots_hour, n_knots_interaction, n_knots_month
