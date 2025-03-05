@@ -317,7 +317,7 @@ def train_model():
     print(f"Categorical features shape: {X_cat.shape}")
     print(f"Targets shape: {Y.shape}")
 
-    batch_size = 1024
+    batch_size = 5000
     train_loader, test_loader = build_dataloaders(X_cont, X_cat, Y, batch_size=batch_size)
     
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -326,8 +326,8 @@ def train_model():
     model.to(device=device, dtype=torch.float64)
 
     criterion = nn.MSELoss()
-    max_lr = 0.005
-    base_lr = 0.00005
+    max_lr = 0.003
+    base_lr = 0.0001
     optimizer = torch.optim.Adam(model.parameters(), lr=max_lr)
     scheduler = torch.optim.lr_scheduler.CyclicLR(optimizer, base_lr=base_lr, max_lr=max_lr)
     num_epochs = 1000000
@@ -354,7 +354,7 @@ def train_model():
         if epoch % 1 == 0:
             print(f"Epoch {epoch+1}/{num_epochs} -- Train Loss: {train_loss:.4e} | Test Loss: {test_loss:.4e} | best: {best_test_loss:.4e} ({epochs_since_best} epochs ago)")
 
-        if test_loss > 2. * best_test_loss or train_loss > 2. * best_test_loss or epochs_since_best > 100:
+        if test_loss > 2. * best_test_loss or train_loss > 2. * best_test_loss or epochs_since_best > 500:
             checkpoint = torch.load(model_file)
             model.load_state_dict(checkpoint["model_state_dict"])
             optimizer.load_state_dict(checkpoint["optimizer_state_dict"])

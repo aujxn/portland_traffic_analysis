@@ -1,0 +1,116 @@
+\documentclass[xcolor=dvipsnames]{beamer}
+\usepackage{graphicx}
+\usepackage{amsmath,amssymb}
+\usepackage{multirow}
+\usepackage[backend=bibtex,style=authoryear, defernumbers=true]{biblatex}
+\addbibresource{references.bib}
+\usepackage{bibentry}
+\graphicspath{{graphics/}{../traffic_data_analysis/traffic_data_analysis/plots/}}
+
+%\usepackage{mathtools}
+\usepackage[linesnumbered,ruled,vlined]{algorithm2e}
+
+\usetheme{Madrid}
+
+\setbeamersize
+{
+  text margin left=0.75cm,
+  text margin right=0.75cm
+}
+
+\newcommand*\oldmacro{}
+%\newcommand{\longsearrow}{\lower 1.4ex\hbox{\begin{picture}(18,18)(0,0)
+%\put(0,18){\vector(1,-1){18}}
+%\end{picture}}}
+\def\A{{\mathcal A}}
+\def\B{{\mathcal B}}
+\def\Q{{\mathcal Q}}
+
+\def\b1{{\mathbf 1}}
+\def\bone{{\mathbf 1}}
+\def\b0{{\mathbf 0}}
+\def\bb{{\mathbf b}}
+\def\bx{{\mathbf x}}
+\def\bw{{\mathbf w}}
+\def\be{{\mathbf e}}
+\def\bu{{\mathbf u}}
+\def\bv{{\mathbf v}}
+\def\br{{\mathbf r}}
+\def\bg{{\mathbf g}}
+\newcommand{\vc}{\boldsymbol}
+\newcommand{\N}{{\mathcal N}}
+\newcommand{\R}{{\mathcal R}}
+\newcommand{\M}{{\mathcal M}}
+\newcommand{\Range}{{\mathcal Range}}
+%\renewcommand{\Ref}[1]{\mbox{(\ref{#1})}}
+%\DeclarePairedDelimiter\ceil{\lceil}{\rceil}
+
+\newcommand{\e}{\varepsilon}
+\newcommand{\RR}{\mathbb{R}}
+\newcommand{\FF}{\mathbb{F}}
+\newcommand{\CC}{\mathbb{C}}
+\newcommand{\NN}{\mathbb{N}}
+\newcommand{\ZZ}{\mathbb{Z}}
+\newcommand{\QQ}{\mathbb{Q}}
+
+\let\oldmacro\insertshorttitle% save previous definition
+\renewcommand*\insertshorttitle{GAM}
+\usebeamertemplate{mytheme}
+
+\renewcommand{\div}{\operatorname{div}}
+\newcommand{\grad}{\operatorname{grad}}
+
+\DeclareMathOperator{\CreateSolver}{CreateSolver}
+\DeclareMathOperator{\TestHomogeneous}{TestHomogeneous}
+\DeclareMathOperator{\AdaptiveSolver}{AdaptiveMLSolver}
+\DeclareMathOperator{\SymmetricComposition}{SymmetricComposition}
+
+\title{Generalized Additive Model for Traffic}
+
+
+\author[Nelson]{Austen Nelson\inst{1}}
+
+%\vspace*{-0.05cm}
+
+\institute[short]{\tiny
+\vspace*{-0.2cm}
+ \inst{1}
+Portland State University\\
+}
+
+\vspace*{0.5cm}
+
+\date[\today]
+{{\color{blue} Progress Update}\\ \today}
+\vspace*{-0.4cm}
+\titlegraphic{\includegraphics[width=3.5cm,height=0.75cm]{PSU_logo.png}}
+
+\begin{document}
+
+\frame{\titlepage}
+\begin{frame}
+  \frametitle{Generalized Additive Model (GAM)}
+
+\begin{enumerate}
+  \item Explanatory variables: Hour of day ($h$), month of year ($m$), and post-Covid indicator ($p$)
+  \item Target variable: Hourly traffic volume
+\end{enumerate}
+
+  \vspace{1em}
+
+  Assumptions:
+\begin{enumerate}
+    \item The target (output) variable \emph{varies smoothly} in response to the explanatory (input) variables. 
+    \item The function we are modelling can be decomposed into a sum of functions. 
+\end{enumerate}
+
+$$f(h, m, p) = s_1(h) + s_2(m) + s_3(ph)$$
+\end{frame}
+
+\begin{frame}
+  \frametitle{GAM Example}
+  \begin{figure}[b]{\textwidth}
+    \includegraphics[width=.8\textwidth]{26002_Vista-Ridge-Tunne_EB_Weekend_gam.png}
+  \end{figure}
+\end{frame}
+\end{document}
