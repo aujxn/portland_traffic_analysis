@@ -139,8 +139,9 @@ $$
 \text{MMD}^2(X, Y) = \mathbb{E}_{x, x' \sim P} [k(x, x')] + \mathbb{E}_{y, y' \sim Q} [k(y, y')] - 2\mathbb{E}_{x \sim P, y \sim Q} [k(x, y)]
 $$
 $k(\cdot, \cdot)$ is a chosen kernel function, such as the Gaussian radial basis function (RBF) kernel.
-where $X$ and $Y$ represent hourly traffic counts for a given day type within a specific month group, with $x_{i,j}$ and $y_{i,j}$ corresponding to traffic counts at hour $j$ for the $i$th observation in pre- and post-pandemic periods, respectively. The MMD statistic is computed using a Gaussian kernel function, providing a measure of distributional difference between $X$ and $Y$.
-To evaluate statistical significance, we perform a permutation test. The traffic data is pooled and randomly reassigned into new pre- and post-pandemic groups of the same size as the original datasets. The MMD statistic is recomputed for each permutation, creating an empirical distribution under the null hypothesis. The p-value is estimated as the fraction of permuted MMD values that exceed or equal the observed MMD, ensuring that our conclusions are statistically robust.
+where $X$ and $Y$ represent hourly traffic counts for a given day type within a specific month group, with $x_{i,j}$ and $y_{i,j}$ corresponding to traffic counts at hour $j$ for the $i$th observation in pre- and post-pandemic periods, respectively. The MMD statistic is computed using a kernel function, providing a measure of distributional difference between $X$ and $Y$.
+Statistical significance is evaluated using a permutation test. Traffic data is pooled and randomly reassigned into new pre- and post-pandemic groups, maintaining the same sample sizes as the original datasets. The MMD statistic is then recomputed for each permutation, generating an empirical distribution under the null hypothesis. The p-value is estimated as the proportion of permuted MMD values that exceed or equal the observed MMD, ensuring statistical robustness in assessing distributional differences.
+
 \section{Results}
 
 \subsection{Generalized Additive Model (GAM)}
