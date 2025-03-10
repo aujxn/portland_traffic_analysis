@@ -122,7 +122,26 @@ generalized well for our data. The knots for $\hat s_3$ were chosen because we a
 
 \subsection{Maximum Mean Discrepancy (MMD)}
 
-One of the most fundamental tasks in traffic data analysis is identifying distributional changes over time, particularly before and after major events such as the COVID-19 pandemic. Traditional statistical methods often rely on parametric assumptions, but real-world traffic data is complex, high-dimensional, and often does not follow simple parametric distributions. A common approach to address this issue is to use Maximum Mean Discrepancy (MMD), a kernel-based statistical test that quantifies differences between two distributions without assuming any specific parametric form.
+A fundamental challenge in traffic data analysis is detecting distributional changes over time, particularly in response to major events such as the COVID-19 pandemic. Traditional statistical methods often rely on parametric assumptions, which may not adequately capture the complexity and high dimensionality of real-world traffic data. To address this limitation, Maximum Mean Discrepancy (MMD) offers a robust alternative as a kernel-based statistical test that quantifies differences between distributions without assuming a specific parametric form.
+MMD is a non-parametric method that measures the divergence between two probability distributions by embedding them in a reproducing kernel Hilbert space (RKHS). As a kernel-based two-sample test, it enables the comparison of traffic distributions by mapping them into a high-dimensional space and evaluating differences in their mean embeddings. These properties make MMD particularly well-suited for this study, providing a flexible and effective approach to assessing shifts in traffic patterns before and after the pandemic.
+\begin{itemize}
+    \item The distributions of interest can be compared without assuming a parametric form.
+    \item MMD leverages kernel methods to smooth data, making it less sensitive to outliers compared to traditional methods. 
+\end{itemize}
+This study examines specific locations and days of the week to analyze changes in hourly traffic patterns before and after the pandemic. To facilitate a structured comparison, the data is classified into predefined day types and month groups. The day classification includes four categories: Mondays, Fridays, Tuesday-to-Thursday (grouped as similar weekdays), and weekends (Saturday and Sunday grouped together). Similarly, the twelve months are aggregated into five distinct groups based on shared seasonal traffic patterns. The MMD test is employed to compare hourly traffic distributions across these groups, assessing significant shifts in traffic flow patterns between pre- and post-pandemic periods. To ensure statistical rigor, permutation tests are incorporated, generating an empirical null distribution to estimate the significance of observed changes.
+Given two sets of traffic data,  X  (pre-pandemic) and   Y  (post-pandemic), the MMD statistic is defined as:
+$$
+X = \{ x_{i,j} \mid i = 1, \dots, N; \, j = 1, \dots, 24 \}, \quad
+Y = \{ y_{i,j} \mid i = 1, \dots, M; \, j = 1, \dots, 24 \}
+$$
+- $x_{i,j}$ and $y_{i,j}$ represent the traffic count for the $i$th day at hour $j$, before and after the pandemic, respectively.
+$$
+\text{MMD}^2(X, Y) = \mathbb{E}_{x, x' \sim P} [k(x, x')] + \mathbb{E}_{y, y' \sim Q} [k(y, y')] - 2\mathbb{E}_{x \sim P, y \sim Q} [k(x, y)]
+$$
+$k(\cdot, \cdot)$ is a chosen kernel function, such as the Gaussian radial basis function (RBF) kernel.
+where $X$ and $Y$ represent hourly traffic counts for a given day type within a specific month group, with $x_{i,j}$ and $y_{i,j}$ corresponding to traffic counts at hour $j$ for the $i$th observation in pre- and post-pandemic periods, respectively. The MMD statistic is computed using a kernel function, providing a measure of distributional difference between $X$ and $Y$.
+Statistical significance is evaluated using a permutation test. Traffic data is pooled and randomly reassigned into new pre- and post-pandemic groups, maintaining the same sample sizes as the original datasets. The MMD statistic is then recomputed for each permutation, generating an empirical distribution under the null hypothesis. The p-value is estimated as the proportion of permuted MMD values that exceed or equal the observed MMD, ensuring statistical robustness in assessing distributional differences.
+
 \section{Results}
 
 \subsection{Generalized Additive Model (GAM)}
