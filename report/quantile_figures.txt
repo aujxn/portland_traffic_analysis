@@ -1,251 +1,227 @@
-\subsubsection{Troutdale}
-
-\begin{figure}[H]
+\begin{figure}[htbp]
 	\centering
-	\begin{subfigure}[b]{0.45\textwidth}
+	\begin{subfigure}{0.45\textwidth}
 		\includegraphics[width=\textwidth]{26001_Troutdale_EB_Weekday.png}
 	\end{subfigure}
 	\hfill
-	\begin{subfigure}[b]{0.45\textwidth}
+	\begin{subfigure}{0.45\textwidth}
 		\includegraphics[width=\textwidth]{26001_Troutdale_EB_Weekend.png}
 	\end{subfigure}
 
-	\begin{subfigure}[b]{0.45\textwidth}
+	\begin{subfigure}{0.45\textwidth}
 		\includegraphics[width=\textwidth]{26001_Troutdale_WB_Weekday.png}
 	\end{subfigure}
 	\hfill
-	\begin{subfigure}[b]{0.45\textwidth}
+	\begin{subfigure}{0.45\textwidth}
 		\includegraphics[width=\textwidth]{26001_Troutdale_WB_Weekend.png}
 	\end{subfigure}
 \end{figure}
 
-\subsubsection{Vista Ridge Tunnel}
-
-\begin{figure}[H]
+\begin{figure}[htbp]
 	\centering
-	\begin{subfigure}[b]{0.45\textwidth}
+	\begin{subfigure}{0.45\textwidth}
 		\includegraphics[width=\textwidth]{26002_Vista-Ridge-Tunne_EB_Weekday.png}
 	\end{subfigure}
 	\hfill
-	\begin{subfigure}[b]{0.45\textwidth}
+	\begin{subfigure}{0.45\textwidth}
 		\includegraphics[width=\textwidth]{26002_Vista-Ridge-Tunne_EB_Weekend.png}
 	\end{subfigure}
 
-	\begin{subfigure}[b]{0.45\textwidth}
+	\begin{subfigure}{0.45\textwidth}
 		\includegraphics[width=\textwidth]{26002_Vista-Ridge-Tunne_WB_Weekday.png}
 	\end{subfigure}
 	\hfill
-	\begin{subfigure}[b]{0.45\textwidth}
+	\begin{subfigure}{0.45\textwidth}
 		\includegraphics[width=\textwidth]{26002_Vista-Ridge-Tunne_WB_Weekend.png}
 	\end{subfigure}
 \end{figure}
 
-\subsubsection{I5 Bridge}
-
-\begin{figure}[H]
+\begin{figure}[htbp]
 	\centering
-	\begin{subfigure}[b]{0.45\textwidth}
+	\begin{subfigure}{0.45\textwidth}
 		\includegraphics[width=\textwidth]{26004_Interstate-Bridge_NB_Weekday.png}
 	\end{subfigure}
 	\hfill
-	\begin{subfigure}[b]{0.45\textwidth}
+	\begin{subfigure}{0.45\textwidth}
 		\includegraphics[width=\textwidth]{26004_Interstate-Bridge_NB_Weekend.png}
 	\end{subfigure}
 
-	\begin{subfigure}[b]{0.45\textwidth}
+	\begin{subfigure}{0.45\textwidth}
 		\includegraphics[width=\textwidth]{26004_Interstate-Bridge_SB_Weekday.png}
 	\end{subfigure}
 	\hfill
-	\begin{subfigure}[b]{0.45\textwidth}
+	\begin{subfigure}{0.45\textwidth}
 		\includegraphics[width=\textwidth]{26004_Interstate-Bridge_SB_Weekend.png}
 	\end{subfigure}
 \end{figure}
 
-\subsubsection{Hoyt}
-
-\begin{figure}[H]
+\begin{figure}[htbp]
 	\centering
-	\begin{subfigure}[b]{0.45\textwidth}
+	\begin{subfigure}{0.45\textwidth}
 		\includegraphics[width=\textwidth]{26014_Hoyt_EB_Weekday.png}
 	\end{subfigure}
 	\hfill
-	\begin{subfigure}[b]{0.45\textwidth}
+	\begin{subfigure}{0.45\textwidth}
 		\includegraphics[width=\textwidth]{26014_Hoyt_EB_Weekend.png}
 	\end{subfigure}
 
-	\begin{subfigure}[b]{0.45\textwidth}
+	\begin{subfigure}{0.45\textwidth}
 		\includegraphics[width=\textwidth]{26014_Hoyt_WB_Weekday.png}
 	\end{subfigure}
 	\hfill
-	\begin{subfigure}[b]{0.45\textwidth}
+	\begin{subfigure}{0.45\textwidth}
 		\includegraphics[width=\textwidth]{26014_Hoyt_WB_Weekend.png}
 	\end{subfigure}
 \end{figure}
 
-\subsubsection{Iowa Street}
-
-\begin{figure}[H]
+\begin{figure}[htbp]
 	\centering
-	\begin{subfigure}[b]{0.45\textwidth}
+	\begin{subfigure}{0.45\textwidth}
 		\includegraphics[width=\textwidth]{26016_Iowa-Street_NB_Weekday.png}
 	\end{subfigure}
 	\hfill
-	\begin{subfigure}[b]{0.45\textwidth}
+	\begin{subfigure}{0.45\textwidth}
 		\includegraphics[width=\textwidth]{26016_Iowa-Street_NB_Weekend.png}
 	\end{subfigure}
 
-	\begin{subfigure}[b]{0.45\textwidth}
+	\begin{subfigure}{0.45\textwidth}
 		\includegraphics[width=\textwidth]{26016_Iowa-Street_SB_Weekday.png}
 	\end{subfigure}
 	\hfill
-	\begin{subfigure}[b]{0.45\textwidth}
+	\begin{subfigure}{0.45\textwidth}
 		\includegraphics[width=\textwidth]{26016_Iowa-Street_SB_Weekend.png}
 	\end{subfigure}
 \end{figure}
 
-\subsubsection{Lents}
-
-\begin{figure}[H]
+\begin{figure}[htbp]
 	\centering
-	\begin{subfigure}[b]{0.45\textwidth}
+	\begin{subfigure}{0.45\textwidth}
 		\includegraphics[width=\textwidth]{26022_Lents_NB_Weekday.png}
 	\end{subfigure}
 	\hfill
-	\begin{subfigure}[b]{0.45\textwidth}
+	\begin{subfigure}{0.45\textwidth}
 		\includegraphics[width=\textwidth]{26022_Lents_NB_Weekend.png}
 	\end{subfigure}
 
-	\begin{subfigure}[b]{0.45\textwidth}
+	\begin{subfigure}{0.45\textwidth}
 		\includegraphics[width=\textwidth]{26022_Lents_SB_Weekday.png}
 	\end{subfigure}
 	\hfill
-	\begin{subfigure}[b]{0.45\textwidth}
+	\begin{subfigure}{0.45\textwidth}
 		\includegraphics[width=\textwidth]{26022_Lents_SB_Weekend.png}
 	\end{subfigure}
 \end{figure}
 
-\subsubsection{Glenn Jackson Bridge}
-
-\begin{figure}[H]
+\begin{figure}[htbp]
 	\centering
-	\begin{subfigure}[b]{0.45\textwidth}
+	\begin{subfigure}{0.45\textwidth}
 		\includegraphics[width=\textwidth]{26024_Glenn-Jackson-Bridge_NB_Weekday.png}
 	\end{subfigure}
 	\hfill
-	\begin{subfigure}[b]{0.45\textwidth}
+	\begin{subfigure}{0.45\textwidth}
 		\includegraphics[width=\textwidth]{26024_Glenn-Jackson-Bridge_NB_Weekend.png}
 	\end{subfigure}
 
-	\begin{subfigure}[b]{0.45\textwidth}
+	\begin{subfigure}{0.45\textwidth}
 		\includegraphics[width=\textwidth]{26024_Glenn-Jackson-Bridge_SB_Weekday.png}
 	\end{subfigure}
 	\hfill
-	\begin{subfigure}[b]{0.45\textwidth}
+	\begin{subfigure}{0.45\textwidth}
 		\includegraphics[width=\textwidth]{26024_Glenn-Jackson-Bridge_SB_Weekend.png}
 	\end{subfigure}
 \end{figure}
 
-\subsubsection{Fairview}
-
-\begin{figure}[H]
+\begin{figure}[htbp]
 	\centering
-	\begin{subfigure}[b]{0.45\textwidth}
+	\begin{subfigure}{0.45\textwidth}
 		\includegraphics[width=\textwidth]{26028_Fairview_EB_Weekday.png}
 	\end{subfigure}
 	\hfill
-	\begin{subfigure}[b]{0.45\textwidth}
+	\begin{subfigure}{0.45\textwidth}
 		\includegraphics[width=\textwidth]{26028_Fairview_EB_Weekend.png}
 	\end{subfigure}
 
-	\begin{subfigure}[b]{0.45\textwidth}
+	\begin{subfigure}{0.45\textwidth}
 		\includegraphics[width=\textwidth]{26028_Fairview_WB_Weekday.png}
 	\end{subfigure}
 	\hfill
-	\begin{subfigure}[b]{0.45\textwidth}
+	\begin{subfigure}{0.45\textwidth}
 		\includegraphics[width=\textwidth]{26028_Fairview_WB_Weekend.png}
 	\end{subfigure}
 \end{figure}
 
-\subsubsection{Wilsonville}
-
-\begin{figure}[H]
+\begin{figure}[htbp]
 	\centering
-	\begin{subfigure}[b]{0.45\textwidth}
+	\begin{subfigure}{0.45\textwidth}
 		\includegraphics[width=\textwidth]{3011_Wilsonville_NB_Weekday.png}
 	\end{subfigure}
 	\hfill
-	\begin{subfigure}[b]{0.45\textwidth}
+	\begin{subfigure}{0.45\textwidth}
 		\includegraphics[width=\textwidth]{3011_Wilsonville_NB_Weekend.png}
 	\end{subfigure}
 
-	\begin{subfigure}[b]{0.45\textwidth}
+	\begin{subfigure}{0.45\textwidth}
 		\includegraphics[width=\textwidth]{3011_Wilsonville_SB_Weekday.png}
 	\end{subfigure}
 	\hfill
-	\begin{subfigure}[b]{0.45\textwidth}
+	\begin{subfigure}{0.45\textwidth}
 		\includegraphics[width=\textwidth]{3011_Wilsonville_SB_Weekend.png}
 	\end{subfigure}
 \end{figure}
 
-\subsubsection{Stafford}
-
-\begin{figure}[H]
+\begin{figure}[htbp]
 	\centering
-	\begin{subfigure}[b]{0.45\textwidth}
+	\begin{subfigure}{0.45\textwidth}
 		\includegraphics[width=\textwidth]{3016_Stafford_NB_Weekday.png}
 	\end{subfigure}
 	\hfill
-	\begin{subfigure}[b]{0.45\textwidth}
+	\begin{subfigure}{0.45\textwidth}
 		\includegraphics[width=\textwidth]{3016_Stafford_NB_Weekend.png}
 	\end{subfigure}
 
-	\begin{subfigure}[b]{0.45\textwidth}
+	\begin{subfigure}{0.45\textwidth}
 		\includegraphics[width=\textwidth]{3016_Stafford_SB_Weekday.png}
 	\end{subfigure}
 	\hfill
-	\begin{subfigure}[b]{0.45\textwidth}
+	\begin{subfigure}{0.45\textwidth}
 		\includegraphics[width=\textwidth]{3016_Stafford_SB_Weekend.png}
 	\end{subfigure}
 \end{figure}
 
-\subsubsection{North Plains}
-
-\begin{figure}[H]
+\begin{figure}[htbp]
 	\centering
-	\begin{subfigure}[b]{0.45\textwidth}
+	\begin{subfigure}{0.45\textwidth}
 		\includegraphics[width=\textwidth]{34007_North-Plains_EB_Weekday.png}
 	\end{subfigure}
 	\hfill
-	\begin{subfigure}[b]{0.45\textwidth}
+	\begin{subfigure}{0.45\textwidth}
 		\includegraphics[width=\textwidth]{34007_North-Plains_EB_Weekend.png}
 	\end{subfigure}
 
-	\begin{subfigure}[b]{0.45\textwidth}
+	\begin{subfigure}{0.45\textwidth}
 		\includegraphics[width=\textwidth]{34007_North-Plains_WB_Weekday.png}
 	\end{subfigure}
 	\hfill
-	\begin{subfigure}[b]{0.45\textwidth}
+	\begin{subfigure}{0.45\textwidth}
 		\includegraphics[width=\textwidth]{34007_North-Plains_WB_Weekend.png}
 	\end{subfigure}
 \end{figure}
 
-\subsubsection{Beaverton Bethany}
-
-\begin{figure}[H]
+\begin{figure}[htbp]
 	\centering
-	\begin{subfigure}[b]{0.45\textwidth}
+	\begin{subfigure}{0.45\textwidth}
 		\includegraphics[width=\textwidth]{34010_Beaverton-Bethany_EB_Weekday.png}
 	\end{subfigure}
 	\hfill
-	\begin{subfigure}[b]{0.45\textwidth}
+	\begin{subfigure}{0.45\textwidth}
 		\includegraphics[width=\textwidth]{34010_Beaverton-Bethany_EB_Weekend.png}
 	\end{subfigure}
 
-	\begin{subfigure}[b]{0.45\textwidth}
+	\begin{subfigure}{0.45\textwidth}
 		\includegraphics[width=\textwidth]{34010_Beaverton-Bethany_WB_Weekday.png}
 	\end{subfigure}
 	\hfill
-	\begin{subfigure}[b]{0.45\textwidth}
+	\begin{subfigure}{0.45\textwidth}
 		\includegraphics[width=\textwidth]{34010_Beaverton-Bethany_WB_Weekend.png}
 	\end{subfigure}
 \end{figure}

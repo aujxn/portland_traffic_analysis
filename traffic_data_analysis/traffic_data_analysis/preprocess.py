@@ -131,7 +131,7 @@ def wrangle() -> pl.DataFrame:
     df_long = df_long.with_columns([
         pl.col("DateTime").dt.year().alias("Year"),
         pl.col("DateTime").dt.hour().alias("Hour"),
-        (pl.col("DateTime").dt.weekday() >= 5).alias("Weekend")
+        (pl.col("DateTime").dt.weekday() >= 6).alias("Weekend")
     ])
 
     return df_long
