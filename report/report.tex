@@ -122,25 +122,81 @@ generalized well for our data. The knots for $\hat s_3$ were chosen because we a
 
 \subsection{Maximum Mean Discrepancy (MMD)}
 
-A fundamental challenge in traffic data analysis is detecting distributional changes over time, particularly in response to major events such as the COVID-19 pandemic. Traditional statistical methods often rely on parametric assumptions, which may not adequately capture the complexity and high dimensionality of real-world traffic data. To address this limitation, Maximum Mean Discrepancy (MMD) offers a robust alternative as a kernel-based statistical test that quantifies differences between distributions without assuming a specific parametric form.
-MMD is a non-parametric method that measures the divergence between two probability distributions by embedding them in a reproducing kernel Hilbert space (RKHS). As a kernel-based two-sample test, it enables the comparison of traffic distributions by mapping them into a high-dimensional space and evaluating differences in their mean embeddings. These properties make MMD particularly well-suited for this study, providing a flexible and effective approach to assessing shifts in traffic patterns before and after the pandemic.
+Traditional statistical methods often rely on parametric assumptions, which may fail to capture the complexity and high-dimensional nature of real-world traffic patterns. To address these limitations, Maximum Mean Discrepancy (MMD) provides a robust, non-parametric alternative for detecting shifts in traffic distributions.
+MMD is a kernel-based statistical test that quantifies differences between probability distributions without imposing parametric constraints. By embedding distributions in a reproducing kernel Hilbert space (RKHS), MMD enables a flexible two-sample comparison by mapping traffic data into a high-dimensional space and evaluating the divergence in their mean embeddings. This approach is particularly well-suited for assessing shifts in traffic patterns before and after the pandemic, offering a data-driven framework for capturing complex, non-linear changes in distribution.
+
+\subsubsection{Data Structuring Strategy}
+
+To ensure a systematic comparison of pre- and post-pandemic traffic patterns, the dataset is structured into two key dimensions:
+\begin{enumerate}
+    \item Time segmentation through monthly groups
+    \item Traffic behavior segmentation by day-type classification
+\end{enumerate}
+
+This structure allows for temporal consistency and prevents confounding effects from seasonal or weekday variations.
+
+\paragraph{Monthly Grouping for Temporal Consistency}
+
+To account for variation in traffic demand across different times of the year, we divide the dataset into five distinct monthly groups instead of using traditional seasonal definitions. This prevents seasonal confounders from affecting our analysis.
+
 \begin{itemize}
-    \item The distributions of interest can be compared without assuming a parametric form.
-    \item MMD leverages kernel methods to smooth data, making it less sensitive to outliers compared to traditional methods. 
+    \item \textbf{January–February:} Typically, the lowest traffic counts due to winter weather conditions.
+    \item \textbf{March:} Contains Spring break week, influencing travel demand.
+    \item \textbf{April–May \& September–October:} Stable school/work schedules, making them strong baseline months for comparison.
+    \item \textbf{June–July–August:} Summer months with a different traffic pattern, characterized by fewer school-related trips and more recreational travel.
+    \item \textbf{November–December:} Affected by winter conditions and holiday travel, introducing variability in demand.
 \end{itemize}
-This study examines specific locations and days of the week to analyze changes in hourly traffic patterns before and after the pandemic. To facilitate a structured comparison, the data is classified into predefined day types and month groups. The day classification includes four categories: Mondays, Fridays, Tuesday-to-Thursday (grouped as similar weekdays), and weekends (Saturday and Sunday grouped together). Similarly, the twelve months are aggregated into five distinct groups based on shared seasonal traffic patterns. The MMD test is employed to compare hourly traffic distributions across these groups, assessing significant shifts in traffic flow patterns between pre- and post-pandemic periods. To ensure statistical rigor, permutation tests are incorporated, generating an empirical null distribution to estimate the significance of observed changes.
-Given two sets of traffic data,  X  (pre-pandemic) and   Y  (post-pandemic), the MMD statistic is defined as:
-$$
-X = \{ x_{i,j} \mid i = 1, \dots, N; \, j = 1, \dots, 24 \}, \quad
-Y = \{ y_{i,j} \mid i = 1, \dots, M; \, j = 1, \dots, 24 \}
-$$
-- $x_{i,j}$ and $y_{i,j}$ represent the traffic count for the $i$th day at hour $j$, before and after the pandemic, respectively.
-$$
-\text{MMD}^2(X, Y) = \mathbb{E}_{x, x' \sim P} [k(x, x')] + \mathbb{E}_{y, y' \sim Q} [k(y, y')] - 2\mathbb{E}_{x \sim P, y \sim Q} [k(x, y)]
-$$
-$k(\cdot, \cdot)$ is a chosen kernel function, such as the Gaussian radial basis function (RBF) kernel.
-where $X$ and $Y$ represent hourly traffic counts for a given day type within a specific month group, with $x_{i,j}$ and $y_{i,j}$ corresponding to traffic counts at hour $j$ for the $i$th observation in pre- and post-pandemic periods, respectively. The MMD statistic is computed using a kernel function, providing a measure of distributional difference between $X$ and $Y$.
+
+This grouping strategy ensures that traffic trends are analyzed under similar external conditions before and after the pandemic.
+
+\paragraph{Day-Type Classification for Behavioral Segmentation}
+
+Traffic patterns vary based on the day of the week, requiring further classification to capture meaningful behavioral trends. We categorize traffic data into four primary day types:
+
+\begin{itemize}
+    \item \textbf{Monday \& Friday:} Often show distinct travel behaviors, with Friday frequently exhibiting early departures and heavier congestion.
+    \item \textbf{Tuesday–Wednesday–Thursday (T/W/T):} Assumed to have relatively consistent traffic patterns, grouped together for statistical efficiency.
+    \item \textbf{Saturday \& Sunday (Weekends):} Typically show non-commuting, recreational travel behaviors, distinct from weekday traffic trends.
+\end{itemize}
+
+By applying this dual-layered structuring approach, we ensure that comparisons between pre- and post-pandemic traffic data are made under logically consistent conditions, minimizing external sources of variation.
+
+\subsubsection{MMD Model for Traffic Pattern Comparison}
+
+After structuring the dataset, we use the Maximum Mean Discrepancy (MMD) statistic to measure shifts in traffic distributions. Given two sets of traffic data:
+
+\[
+X = \{x_{i,j} \mid i = 1, \dots, N; j = 1, \dots, 24\}, \quad Y = \{y_{i,j} \mid i = 1, \dots, M; j = 1, \dots, 24\}
+\]
+
+where:
+
+\begin{itemize}
+    \item $x_{i,j}$ and $y_{i,j}$ are traffic counts at hour $j$ on day $i$ for pre- and post-pandemic periods, respectively.
+    \item $X$ and $Y$ represent hourly traffic counts for each day type within a specific monthly group.
+\end{itemize}
+
+The MMD statistic is calculated as:
+
+\[
+\text{MMD}^2(X, Y) = \mathbb{E}_{x,x'}[k(x, x')] + \mathbb{E}_{y,y'}[k(y, y')] - 2\mathbb{E}_{x,y}[k(x, y)]
+\]
+
+where \( k(\cdot, \cdot) \) is a Gaussian kernel function. This provides a non-parametric measure of distributional shift in traffic behavior.
+
+\subsubsection{Statistical Inference Using Permutation Testing}
+
 Statistical significance is evaluated using a permutation test. Traffic data is pooled and randomly reassigned into new pre- and post-pandemic groups, maintaining the same sample sizes as the original datasets. The MMD statistic is then recomputed for each permutation, generating an empirical distribution under the null hypothesis. The p-value is estimated as the proportion of permuted MMD values that exceed or equal the observed MMD, ensuring statistical robustness in assessing distributional differences.
+
+The empirical p-value is calculated as:
+
+\[
+p = \frac{\sum_{b=1}^{B} \mathbb{1}(\text{MMD}^2_b \geq \text{MMD}^2_{\text{obs}})}{B}
+\]
+
+where \( B \) is the number of permutations, \( \text{MMD}^2_{\text{obs}} \) is the observed MMD statistic, and \( \mathbb{1}(\cdot) \) is an indicator function.
+
+This methodology allows us to determine whether the observed shift in traffic patterns is statistically significant or could have arisen due to random fluctuations.
 
 \section{Results}
 
