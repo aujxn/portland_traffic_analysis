@@ -11,6 +11,7 @@
   \includegraphics[width=10cm]{graphics/PSU_logo_transparent.png}\\[\bigskipamount]
 }
 \posttitle{\end{center}}
+\usepackage{unicode-math}
 \usepackage{amsfonts}
 \usepackage{booktabs}
 \usepackage{longtable}
@@ -51,9 +52,16 @@
 
 \section{Executive Summary}
 
-\section{Introduction and Background}
+The COVID-19 pandemic significantly altered traffic patterns in Portland, reshaping commuter behavior and roadway demand. This report analyzes historical traffic count data to assess how peak traffic periods and overall volumes have shifted on two major highway crossings: the I-5 and Glenn Jackson bridges.
 
-The primary objective of this project is to analyze highway traffic count data to identify changes in traffic patterns pre- and post-pandemic, with a specific focus on the I-5 and Glenn Jackson bridges. The Oregon Department of Transportation (ODOT) seeks a comprehensive, data-driven analysis using historical traffic data from Automatic Traffic Recorders (ATR). The report will address the following key questions:
+Our analysis identifies key changes in traffic demand across different time periods and weekdays, highlighting how commuter habits have evolved post-pandemic. Findings indicate a notable flattening of morning rush-hour peaks, a slight reduction in afternoon traffic volumes, and relatively stable weekend travel patterns. Additionally, distinct variations between the two bridges suggest localized differences in travel behavior and infrastructure utilization.
+
+These insights provide valuable guidance for transportation planning, congestion management, and infrastructure investments. As commuting patterns continue to adapt, future studies incorporating real-time data sources could further refine our understanding of long-term traffic trends in the region.
+
+\section{Introduction and Background}
+The COVID-19 pandemic brought significant shifts in mobility patterns, altering daily commutes and reshaping traffic flow on major highways \cite{covid_mobility_emissions, traffic_hiatus_covid}. This study investigates these changes by analyzing historical traffic count data, with a focus on two critical transportation corridors in the Portland area: the I-5 and Glenn Jackson bridges. Understanding how traffic demand and peak periods have evolved post-pandemic is essential for transportation planning, congestion management, and infrastructure development. These insights can inform policy decisions on commuting patterns, public transit investments, and roadway capacity planning.
+
+To address these needs, the Oregon Department of Transportation (ODOT) seeks a comprehensive, data-driven analysis using historical traffic data from Automatic Traffic Recorders (ATR). To capture the impact of the pandemic on traffic behavior, this report explores the following key questions:
 
 \begin{itemize}
     \item How have peak traffic periods changed in terms of structure (flatter, sharper, later, or earlier throughout the day) at these key locations?
@@ -61,32 +69,31 @@ The primary objective of this project is to analyze highway traffic count data t
     \item Are there distinct trends between these two major highway crossings?
 \end{itemize}
 
-The data provided 
 \section{Data}
 
 ATR data provides 24/7 traffic volume at specific highway locations across Oregon and has been curated by ODOT’s monitoring unit for high reliability. The data consists of vehicle counts over hourly time periods at 12 different highway locations, each consisting of 2 opposite directions (either NB/SB or EB/WB). Some locations have many more years available than others, but in total there are about 3.25 million hours of data recorded over the 24 location and direction combinations.
 
-Many trends and area specific patterns can be easily identified by simply looking at the median values in the data. Table \ref{tab:medians} presents an approximation to weekday peak-time and peak-volume based on cubic periodic spline interpolation of hourly medians. 
+Preliminary analysis of median values reveals notable trends and location-specific patterns in the data. Table \ref{tab:medians} presents an approximation to weekday peak-time and peak-volume based on cubic periodic spline interpolation of hourly medians. 
 
 General visible trends seem to be a slightly later peak traffic time in the mornings and location dependent changes in afternoon peak times. The peak volume is lower post-Covid all across the board, with very few exceptions outside of data availability issues. 
 
 \subsection{Data Quality}
-Overall the provided dataset is high quality and quite complete. For a visual representation of the time coverage for each location / direction combination, see figure \ref{fig:data_availability}. The only issues with data quality we discovered in our analysis fall into two main categories:
+Overall, the provided dataset is high quality and quite complete. For a visual representation of the time coverage for each location / direction combination, see figure \ref{fig:data_availability}. The only issues with data quality we discovered in our analysis fall into two main categories:
 
 \begin{enumerate}
     \item Daylight Savings (DST) Inconsistencies 
 
-        The raw provided data is given in Coordinated Universal Time (UTC) format, which does not observe any DST seasonal changes. Filtering the data for duplicated hours results gives occasional duplicates at midnight in April (before 2006) and March suggesting that some timestamps were recorded or converted improperly. A visual of one of the examples where this happens is shown in 
-        %\ref{fig:dst_example}, 
-        where counts from March through November are clearly shifted exactly one hour forward during the early morning hours when the traffic is most consistent. For most of the analysis we discuss this shouldn't pose a huge issue, but table \ref{tab:medians} approximates what time peak rush hour happens based on hourly medians and occasionally shows a drastic near hour shift of the peak time (see Vista Ridge EB 2018, Wilsonville SB 2024, and Interstate Bridge NB 2024). This makes it difficult to make conclusions about shifts in the traffic structure without more careful analysis. Fortunately, the morning traffic for almost every location is extremely consistent and predictable and identifying and correcting these errors should be possible if that is of interest. 
+        The dataset is recorded in Coordinated Universal Time (UTC), which does not account for Daylight Savings Time (DST) adjustments. This led to occasional timestamp misalignments, particularly at midnight during the spring transitions (April before 2006 and March in later years). These discrepancies suggest that some timestamps may have been incorrectly converted or recorded, potentially affecting time-sensitive traffic analyses. A visual example where this happens is shown in figure \ref{fig:dst_example}, where counts from March through August are clearly shifted exactly one hour forward during the early morning hours when the traffic is most consistent. 
+
+        While these inconsistencies do not significantly impact most analyses, they can introduce errors in identifying precise peak-hour shifts. In particular, Table \ref{tab:medians} shows instances where peak times appear to shift by nearly an hour (e.g., Vista Ridge EB 2018, Wilsonville SB 2024, and Interstate Bridge NB 2024). Further adjustments to correct for these errors may be beneficial for future studies.
 
     \item Under-Reported and Malformed Data
 
-        During the initial interview, the client warned that some of the data is lower than it should be as a result of sensor issues. The client provided us a report of which locations and time periods have such issues and specifying that some data was estimated. One example of estimated data is I5 bridge SB for the year 2018. During this time there was a construction project so traffic could potentially be lower, but reported (potentially estimated) values are so low that the period is not useful for analysis. This is immediately clear in the table \ref{tab:medians} for the Interstate Bridge 2018 median entry. This is a primary location and time period of focus for our analysis, so this data is omitted from the models we create. 
+        Sensor malfunctions and estimation techniques introduced inconsistencies in some data points, as noted in the reliability report provided by the client. Certain locations and time periods exhibited artificially low traffic volumes due to under-reporting or data imputation. One example of this problematic data is I5 bridge SB for the year 2018. During this time there was a construction project so traffic could potentially be lower, but reported (potentially estimated) values are so low that the period is not useful for analysis.
 
         Another example of malformed data is periods of time with many zero values. In the reliability report it is stated that the 2024 Vista Ridge Tunnel data is reliable, but from 10-07 to 12-23 there are 1440 hourly entries with 0 and 1872 non-zero hourly entries.
 
-        One suggestion to address some of these issues would be to add an additional column(s) to the curated data indicating low reliability or estimated entries. This would enable easy filtering when creating models and comparing model results with or without estimated or unreliable data.
+        To enhance data reliability, future datasets could incorporate an additional column flagging estimated or low-confidence entries. This would allow for selective filtering, ensuring that models account for data reliability and providing transparency in trend analysis.
 \end{enumerate}
 
 A complete listing of potential issues we found in the analysis can be found in appendix \ref{app:data_issues}. 
@@ -95,34 +102,31 @@ A complete listing of potential issues we found in the analysis can be found in 
 
 \subsection{Generalized Additive Model (GAM)}
 
-One of the most simple but ubiquitous models in data science is linear regression, but as the name suggests isn't suitable for capturing non-linear relationships in data on its own. A common technique to address this constraint is to choose a suitable non-linear mapping such that the mapped inputs can be modeled with linear regression. GAMs are a class of Generalized Linear Models which provides a framework for selecting such a mapping as the sum over \emph{smooth} functions (often called smoothers). The assumptions for using this kind of model go hand in hand with its additive and smooth properties:
-\begin{enumerate}
-    \item The target (output) variable \emph{varies smoothly} in response to the explanatory (input) variables. 
-    \item The function we are modelling can be decomposed into a sum of functions. 
-\end{enumerate}
+Generalized Additive Models (GAMs) are an extension of generalized linear models that allow for flexible modeling of non-linear relationships by representing the target variable as an additive combination of smooth functions of the explanatory variables \cite{gam, gam_truck_drivers, gam_crash_frequency}. This flexibility makes GAMs particularly suitable for capturing complex patterns in data without imposing strict parametric forms.
 
-Isolating the data to a single location / direction and only considering weekday values, the target variable we model is the hourly traffic counts and explanatory variables which this target varies smoothly with are the hour of the day and month of the year. Then we can model the changes in hourly traffic by creating additional interaction terms between hour of day and categorical variables of interest such as before and after Covid or day of the week.
+In our analysis, we focus on modeling hourly traffic counts (\( y \)) as a function of variables such as the hour of the day (\( h \)), month of the year (\( m \)), and a binary indicator for the period relative to the COVID-19 pandemic (\( p \)), where \( p = 0 \) denotes pre-pandemic and \( p = 1 \) denotes post-pandemic periods. The GAM framework allows us to express this relationship as:
 
-One of the primary reasons to use GAMs is that due to the additive nature the parameters associated with variables of interest give easily interpretable ways to explain dependency effects between variables.
-The non-linear smoothers we use are splines. Spline fitting is similar to polynomial fitting, but are generally easier to work with for a variety of reasons (see Runge effect, sklearn example). 
+\[
+y = s_1(h) + s_2(ph) + s_3(m) + \epsilon
+\]
 
-Our GAM model is as follows:
-$$f(h, m, p) = s_1(h) + s_2(m) + s_3(ph)$$
-where $h$ is the hour of the day, $m$ is the month of the year, and $p$ is $0$ before Covid or $1$ after. The functions $s_i$ are the splines we need to determine. Each $s_i$ can be decomposed into
-$$s_i(x) = w_i^T \hat s_i(x)$$
-where $\hat s_i$ is the nonlinear mapping of the explanatory variable $x$ onto a chosen spline basis. \verb|scikit-learn| is a popular \verb|Python| machine learning library which has APIs to easily create the $\hat s_i$ mappings from the desired parameterizations (polynomial order and knot locations). Once the $\hat s_i$ are determined, the problem is traditional (regularized) linear regression to solve for each $w_i$ and the resulting $s_i$ give interpretable \emph{partial dependence} functions for their associated variables.
+Here, \( s_1 \), \( s_2 \), and \( s_3 \) are smooth functions estimated from the data, and \( \epsilon \) represents the error term. The inclusion of the interaction term \( ph \) enables the model to capture differential effects of the pandemic across different hours of the day.
 
-More advanced GAM specific packages such as \verb|R|'s \verb|mgcv| and \verb|gam| or \verb|Python|'s \verb|PyGAM| have optimization algorithms to determine the appropriate parameters for the smoothing functions automatically. If our model was more complex or included more explanatory variables and interactions, it may be necesarry to use such hyper-parameter tuning. After some experimentation we found the periodic cubic splines with knots:
+A key advantage of GAMs is their interpretability; the additive components \( s_i \) provide insights into how each explanatory variable individually influences the target variable. To estimate these smooth functions, we employ spline functions, which are piecewise polynomials joined smoothly at specific points known as knots. Splines offer greater flexibility than global polynomials and help mitigate issues such as the Runge phenomenon—a problem where high-degree polynomial interpolation can lead to large oscillations at the boundaries of the interpolation interval (classic German reference: \cite{runge1901empirische}).
+
+For implementation, we utilize the \texttt{scikit-learn} library's tools for spline fitting. The library provides functionalities to construct spline basis functions and integrate them into a regression framework, facilitating the estimation of the smooth components in the GAM \cite{scikit-learn}. This approach allows us to model the non-linear relationships in the traffic data effectively while maintaining computational efficiency and interpretability.
+
+After some experimentation we found the periodic cubic splines with knot positions:
 \begin{itemize}
-    \item 15 uniform knots for $\hat s_1$ 
-    \item 4 uniform knots for $\hat s_2$ 
-    \item knots located at $(0, 4, 6, 8, 10, 15, 17, 19, 24)$ for $\hat s_3$
+    \item 15 uniform knots for $s_1$ 
+    \item knots located at $(0, 4, 6, 8, 10, 15, 17, 19, 24)$ for $s_2$
+    \item 4 uniform knots for $s_3$ 
 \end{itemize}
-generalized well for our data. The knots for $\hat s_3$ were chosen because we are primarily interested in the effect on peak traffic periods, so we choose the knots to be more densely located during these times to give the model more ability to express differences in the interaction while limiting negative effects of over-paramaterizing the model.
+generalized well for our data. The knots for $s_3$ were chosen because we are primarily interested in the effect on peak traffic periods, so we choose the knots to be more densely located during these times to give the model more ability to express differences in the interaction while limiting negative effects of over-paramaterizing the model.
 
 \subsection{Maximum Mean Discrepancy (MMD)}
 
-Traditional statistical methods often rely on parametric assumptions, which may fail to capture the complexity and high-dimensional nature of real-world traffic patterns. To address these limitations, Maximum Mean Discrepancy (MMD) provides a robust, non-parametric alternative for detecting shifts in traffic distributions.
+Traditional statistical methods often rely on parametric assumptions, which may fail to capture the complexity and high-dimensional nature of real-world traffic patterns. To address these limitations, Maximum Mean Discrepancy provides a robust, non-parametric alternative for detecting shifts in traffic distributions.
 MMD is a kernel-based statistical test that quantifies differences between probability distributions without imposing parametric constraints. By embedding distributions in a reproducing kernel Hilbert space (RKHS), MMD enables a flexible two-sample comparison by mapping traffic data into a high-dimensional space and evaluating the divergence in their mean embeddings. This approach is particularly well-suited for assessing shifts in traffic patterns before and after the pandemic, offering a data-driven framework for capturing complex, non-linear changes in distribution.
 
 \subsubsection{Data Structuring Strategy}
@@ -163,7 +167,7 @@ By applying this dual-layered structuring approach, we ensure that comparisons b
 
 \subsubsection{MMD Model for Traffic Pattern Comparison}
 
-After structuring the dataset, we use the Maximum Mean Discrepancy (MMD) statistic to measure shifts in traffic distributions. Given two sets of traffic data:
+After structuring the dataset, we use the Maximum Mean Discrepancy statistic to measure shifts in traffic distributions. Given two sets of traffic data:
 
 \[
 X = \{x_{i,j} \mid i = 1, \dots, N; j = 1, \dots, 24\}, \quad Y = \{y_{i,j} \mid i = 1, \dots, M; j = 1, \dots, 24\}
@@ -191,7 +195,7 @@ Statistical significance is evaluated using a permutation test. Traffic data is 
 The empirical p-value is calculated as:
 
 \[
-p = \frac{\sum_{b=1}^{B} \mathbb{1}(\text{MMD}^2_b \geq \text{MMD}^2_{\text{obs}})}{B}
+    p = \frac{\sum_{b=1}^{B} \boldsymbol{\mathbb{1}}(\text{MMD}^2_b \geq \text{MMD}^2_{\text{obs}})}{B}
 \]
 
 where \( B \) is the number of permutations, \( \text{MMD}^2_{\text{obs}} \) is the observed MMD statistic, and \( \mathbb{1}(\cdot) \) is an indicator function.
@@ -200,11 +204,27 @@ This methodology allows us to determine whether the observed shift in traffic pa
 
 \section{Results}
 
-\subsection{Generalized Additive Model (GAM)}
+\subsection{Generalized Additive Model}
 
-\subsection{Maximum Mean Discrepancy (MMD)}
+Visualizations of the GAMs for each ATR location are found in the appendix in section \ref{sec:gam_figs}. The primary findings can be classified into three main categories:
 
-To evaluate the statistical significance of traffic pattern shifts, we applied the Maximum Mean Discrepancy (MMD) test along with a permutation test. The results are visualized in heatmaps, where each cell represents the p-value associated with traffic distribution changes for a specific combination of day type and month group.
+\subsubsection{Weekday `Morning Rush'}
+
+Examples of ATR locations with strong weekday `morning rush' characteristics (usually heading into the metro area) are Vista Ridge Tunnel EB, Interstate Bridges SB, and Iowa Street NB. The general visible change in the morning rush at these locations is a reduction in peak volume and often a slight shift to later in the day. This reduction in peak volume is seen as a `flatter' morning peak where the most intense traffic in the morning is spread out over a longer period of time. A clear outlier to these patterns is Wilsonville NB which has almost identical morning traffic patterns. 
+
+The observed reduction in morning peak volume could be attributed to decreased demand, increased congestion, or a combination of both; however, this dataset alone does not allow for a definitive conclusion. Only for some locations is this reduction compensated by increases in volume later throughout the mid-day.
+
+\subsubsection{Weekday `Afternoon Rush'}
+
+ATR locations with `afternoon rush' characteristics are often the directional pairs to those with `morning rush' ones. The afternoon rush structure is much different, generally less concentrated and spread out over a longer period. The changes in afternoon traffic are less pronounced than the morning ones and the peak volume times are mostly consistent before and after Covid-19. The most obvious change is a slight earlier shift in when the traffic volume begins to taper off and a slight reduction in peak volume counts.
+
+\subsubsection{Weekend}
+
+The visible changes in weekend patterns is much less pronounced than the weekday ones, which is confirmed quantitatively with the statistically testing using MMD discussed in section \ref{sec:mmd_results}. Although less pronounced, there is still a visible reduction in volume at most locations. 
+
+\subsection{Maximum Mean Discrepancy} \label{sec:mmd_results}
+
+To evaluate the statistical significance of traffic pattern shifts, we applied the Maximum Mean Discrepancy test along with a permutation test. The results are visualized in heatmaps, where each cell represents the p-value associated with traffic distribution changes for a specific combination of day type and month group.
 
 \subsubsection{Key Observations and Implications}
 
@@ -226,6 +246,28 @@ Based on the analysis, the following key patterns emerge:
 These findings highlight how post-pandemic travel behavior varies across different day types, with midweek commuting experiencing the most pronounced shifts, while weekend travel remains relatively stable.
 
 \section{Conclusions}
+
+This report analyzed traffic patterns on key highway crossings in Portland, focusing on pre- and post-pandemic trends using ATR data. Our investigation employed both Generalized Additive Models (GAM) and Maximum Mean Discrepancy (MMD) testing to capture changes in peak traffic times, overall volume, and distributional shifts across different time periods and day classifications. The following key insights emerged from our study:
+
+\begin{enumerate}
+\item \textbf{Morning Rush Flattening:} Peak morning traffic volumes have decreased post-pandemic, often accompanied by a later shift in peak times. This suggests changes in commuter behavior, possibly due to increased telecommuting or flexible work schedules.
+\item \textbf{Afternoon Stability:} Unlike the morning rush, the afternoon peak period remains relatively stable in timing and structure. However, a slight reduction in volume is observed, and the peak tapering off occurs earlier in some locations.
+\item \textbf{Weekend Traffic Resilience:} Weekend traffic patterns have shown less significant shifts compared to weekdays. Volume reductions are present but less pronounced, indicating that discretionary travel has been less affected by post-pandemic behavioral changes.
+\item \textbf{Variability by Location:} While general trends hold across the studied locations, site-specific differences highlight the impact of infrastructure, urban development, and local travel needs. The Interstate Bridge and Glenn Jackson Bridge exhibit distinct post-pandemic traffic shifts, suggesting that regional travel demand and alternate route usage may have evolved.
+\item \textbf{Data Quality Considerations:} Our analysis identified some inconsistencies in the ATR dataset, including potential daylight savings time discrepancies and under-reported or estimated data. Addressing these concerns by incorporating reliability indicators in the dataset could improve future modeling efforts.
+\end{enumerate}
+
+
+These findings align with previous studies that have documented significant alterations in urban mobility and emissions during the pandemic \cite{covid_mobility_emissions}. Our findings suggest that long-term shifts in commuting behavior post-pandemic may continue to impact transportation planning. The observed flattening of morning peaks and reduction in overall volume could inform future infrastructure development, congestion management strategies, and transit planning. Further studies incorporating traffic flow models and real-time congestion data could provide deeper insights into the mechanisms driving these changes and their long-term implications for urban mobility.
+
+\subsection{Code Availability}
+
+The code used for analysis and generating this report can all be found in the \href{https://github.com/aujxn/portland_traffic_analysis}{GitHub repo} and is free to use and distribute under the MIT license. 
+
+\bibliographystyle{plain}
+\bibliography{references}
+
+\pagebreak
 
 \appendix
 
@@ -251,15 +293,33 @@ These findings highlight how post-pandemic travel behavior varies across differe
 
     \cmidrule(lr){1-3} \cmidrule(lr){4-7} \cmidrule(lr){8-11}
 
-    \input{median_table.txt}
+    \input{median_table.tex}
 \end{tabular}\par 
 \bigskip 
     Hourly median traffic volume for each entry (location, direction, year) for weekdays is interpolated with a cubic spline to find approximate peak traffic time.
 \end{figure}
 
-\section{GAM Figures}
+\section{MMD Groupings}
 
-\input{gam_figures.txt}
+\input{mmd_figures.tex}
+
+\section{MMD P-Values}
+
+\begin{figure}[H] 
+    \centering
+    \includegraphics[width=0.75\textwidth]{ATR26024_Plots/pvalues_A24.png}
+    \label{fig:i205_pvalues}
+\end{figure}
+
+\begin{figure}[H] 
+    \centering
+    \includegraphics[width=0.75\textwidth]{ATR26004_Plots/pvalues_A04.png}
+    \label{fig:i5_pvalues}
+\end{figure}
+
+\section{GAM Figures} \label{sec:gam_figs}
+
+\input{gam_figures.tex}
 
 \section{Data Availability}
 
@@ -272,9 +332,13 @@ These findings highlight how post-pandemic travel behavior varies across differe
 
 \section{Data Issues Deep Dive by Locations} \label{app:data_issues}
 
+\begin{figure}[H] 
+    \centering
+    \includegraphics[width=0.9\textwidth]{dst_issue.png}
+    \caption{An example of when the data seems to be shifted by exactly an hour indicating issues with how DST was handled. Interestingly, the date ranges don't match exactly with when the time changes happen.}
+    \label{fig:dst_example}
+\end{figure}
+
 These plots provide a visual for similar data presented in table \ref{tab:medians} but includes every year available in the dataset with quantile shading. Each line is the periodic cubic spline interpolation of the hourly medians/quantiles for each (location, direction, weekday/weekend) tuple. Some strange data issues become apparent in these plots, but they are almost entirely only in years we aren't concerned with in this analysis.
-\input{quantile_figures.txt}
-
-%\bibliography{references}
+\input{quantile_figures.tex}
 \end{document}
-
