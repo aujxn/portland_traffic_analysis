@@ -180,13 +180,13 @@ where:
     \item $X$ and $Y$ represent hourly traffic counts for each day type within a specific monthly group.
 \end{itemize}
 
-The MMD statistic is calculated as:
+As shown in \citet{Gretton2019}, the MMD statistic is calculated as:
 
 \[
 \text{MMD}^2(X, Y) = \mathbb{E}_{x,x'}[k(x, x')] + \mathbb{E}_{y,y'}[k(y, y')] - 2\mathbb{E}_{x,y}[k(x, y)]
 \]
 
-where \( k(\cdot, \cdot) \) is a Gaussian kernel function. This provides a non-parametric measure of distributional shift in traffic behavior.
+where \( k(\cdot, \cdot) \) is a kernel function. This provides a non-parametric measure of distributional shift in traffic behavior.
 
 \subsubsection{Statistical Inference Using Permutation Testing}
 
@@ -198,7 +198,7 @@ The empirical p-value is calculated as:
     p = \frac{\sum_{b=1}^{B} \boldsymbol{\mathbb{1}}(\text{MMD}^2_b \geq \text{MMD}^2_{\text{obs}})}{B}
 \]
 
-where \( B \) is the number of permutations, \( \text{MMD}^2_{\text{obs}} \) is the observed MMD statistic, and \( \mathbb{1}(\cdot) \) is an indicator function.
+where \( B \) is the number of permutations, \( \text{MMD}^2_{\text{obs}} \) is the observed MMD statistic, and \( \mathbb{1}(\cdot) \) is an indicator function \cite{Gretton2012}.
 
 This methodology allows us to determine whether the observed shift in traffic patterns is statistically significant or could have arisen due to random fluctuations.
 
