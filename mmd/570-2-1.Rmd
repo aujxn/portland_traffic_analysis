@@ -1,0 +1,3282 @@
+---
+title: "570-2-1"
+output: html_document
+date: "2025-02-13"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r}
+library(readr)
+ATR26024 <- read_csv("ATR26024_2018-2024.csv")
+```
+# Change the time-zone to pacific (Poxisct)
+# Transform wide-format data to long-format for easy time-series analysis and visionlization.
+# Fix the direction column missing data
+# Seperate Hour and Min column for later get Hourly-related data
+
+```{r}
+library(tidyr)
+A26024_long <- pivot_longer(
+  ATR26024,
+  cols = matches("H\\d+(_\\d+)?"),  # Select hourly and sub-hourly columns
+  names_to = "time_interval",       # New column for names of reshaped columns
+  values_to = "traffic_count"       # New column for reshaped values
+)
+library(lubridate) 
+# Fix the Direction column
+A26024_long$StartDate <- with_tz(A26024_long$StartDate, "America/Los_Angeles")
+A26024_long$EndDate <- with_tz(A26024_long$EndDate, "America/Los_Angeles")
+library(dplyr)
+A26024_long <- A26024_long %>%
+  mutate(
+    Direction = ifelse(
+      Direction == "2-WAY",  # If Direction is "2-WAY"
+      NA,  # Set it to NA
+      ifelse(
+        is.na(Direction),  # If Direction is NA
+        ifelse(grepl("_NB", LocationID), "NB",  # Check if LocationID contains "_NB"
+               ifelse(grepl("_SB", LocationID), "SB", NA)),  # Check if LocationID contains "_SB"
+        Direction  # Keep the original value if Direction is not NA
+      )
+    )
+  )
+# Separate hour and interval
+A26024_long <- A26024_long %>%
+  separate(time_interval, into = c("Hour", "Min"), sep = "_", fill = "right")
+
+# Convert hour to numeric (remove "H")
+A26024_long$Hour <- as.numeric(sub("H", "", A26024_long$Hour))-1
+
+# Convert interval to numeric (sub-hourly intervals; NA for hourly totals)
+A26024_long$Min <- as.numeric(A26024_long$Min)
+```
+
+## Hourly-related data month/season/iso-week/days/day_type
+```{r}
+library(dplyr)
+# Merge with hourly totals
+A26024_hr <- A26024_long %>%
+  filter(is.na(Min) & LocationID == "26024") 
+library(lubridate)
+A26024_hr <- A26024_hr %>%
+  mutate(Month = month(StartDate))
+
+# add customized season
+#A26024_hr <- A26024_hr %>%
+  #mutate(
+    #Season = case_when(
+      #month(StartDate) %in% c(3, 4, 5) ~ "Spring",  # 3、4、5 
+      #month(StartDate) %in% c(6, 7, 8) ~ "Summer",  # 6、7、8 
+      #month(StartDate) %in% c(9, 10, 11) ~ "Fall",  # 9、10、11 
+     # month(StartDate) %in% c(12, 1, 2) ~ "Winter"  # 12、1、2 
+   # )
+  #)
+
+# add ISO standard calendar week
+A26024_hr <- A26024_hr %>%
+  mutate(Week = isoweek(StartDate))
+
+# add weekdays (Monday = 1, Sunday = 7)
+A26024_hr<- A26024_hr %>%
+  mutate(
+    Wday = wday(StartDate, week_start = 1),
+    Day_type = case_when(
+      Wday %in% 1:5 ~ "Weekday",   
+      Wday %in% 6:7 ~ "Weekend"
+    )
+  )
+  
+```
+
+# pick NA direction data from A26004_hr
+# filter pre- and post- dataset
+
+```{r}
+# filter rows of Direction = NA
+A26024_hr_NA <- A26024_hr %>%
+  filter(is.na(Direction)) %>%
+  select(-Min, -Interval)
+
+# filter Pre-Pandemic (2018-2019) dataset
+A26024_pre <- A26024_hr_NA %>%
+  filter(year(StartDate) %in% c(2018, 2019))
+
+# filter Post-Pandemic (2023-2024) dataset
+A26024_post <- A26024_hr_NA %>%
+  filter(year(StartDate) %in% c(2023, 2024))
+
+```
+
+# check data intergrity
+# change the StartDate to Date format in pre- and post-
+# missing data 
+# pre-2019/07-10 imcompleted data
+# post-2023/01/04, ignore, 2024/07-08 imcompleted， 2024/09/02， 09/22 missing
+```{r}
+A26024_pre %>%
+  group_by(StartDate) %>%
+  summarise(count = n()) %>%
+  filter(count != 24)  # 
+#
+A26024_pre <- A26024_pre %>%
+  mutate(StartDate = as.Date(StartDate)) #delete time, only date
+date_range_pre <- seq.Date(min(A26024_pre$StartDate), max(A26024_pre$StartDate), by = "day")
+
+# Generate a Full Date Sequence
+all_dates_pre <- data.frame(Date = date_range_pre)
+
+# find missing dates
+missing_dates_pre <- anti_join(all_dates_pre, A26024_pre, by = c("Date" = "StartDate"))
+
+# check missing date
+#print(missing_dates_pre)
+
+A26024_post %>%
+  group_by(StartDate) %>%
+  summarise(count = n()) %>%
+  filter(count != 24)  # 
+
+A26024_post <- A26024_post %>%
+  mutate(StartDate = as.Date(StartDate)) #delete time, only date
+date_range_post <- seq.Date(min(A26024_post$StartDate), max(A26024_post$StartDate), by = "day")
+
+# Generate a Full Date Sequence
+all_dates_post <- data.frame(Date = date_range_post)
+
+# find missing dates
+missing_dates_post <- anti_join(all_dates_post, A26024_post, by = c("Date" = "StartDate"))
+
+# check missing date
+#print(missing_dates_post)
+```
+
+# Overall daily traffic counts line
+```{r}
+library(ggplot2)
+library(dplyr)
+
+# Plot using A26024, ensuring unique StartDate and total_traffic
+ggplot(A26024_hr_NA%>% distinct(StartDate, Total), aes(x = StartDate, y = Total)) +
+  geom_line() +  # Line plot
+  geom_point() +  # Add points for visibility
+  labs(title = "Total Traffic Counts Over Time",
+       x = "Date",
+       y = "Total Traffic Count") +
+  theme_minimal()
+```
+
+# create Day_Hour and make it a factor in order
+
+```{r}
+A26024_pre <- A26024_pre %>%
+  mutate(Day_Hour = paste(Wday, Hour, sep = " ")) %>%  # combine to be a string
+  arrange(as.numeric(Wday), as.numeric(Hour))  # order by wday and hr
+A26024_pre <- A26024_pre %>%
+  mutate(Day_Hour = factor(Day_Hour, levels = unique(Day_Hour)))
+
+# create Day_Hour and make it a factor in order
+A26024_post <- A26024_post %>%
+  mutate(Day_Hour = paste(Wday, Hour, sep = " ")) %>%  # 
+  arrange(as.numeric(Wday), as.numeric(Hour)) 
+A26024_post <- A26024_post %>%
+  mutate(Day_Hour = factor(Day_Hour, levels = unique(Day_Hour)))
+```
+
+#write new dataset into cvs format
+```{r}
+#write.csv(A26024_pre, "A26024_pre.csv", row.names = FALSE)
+#write.csv(A26024_post, "A26024_post.csv", row.names = FALSE)
+```
+
+##deal with the holidays
+```{r}
+holidays_2018 <- as.Date(c(
+  "2018-01-01", "2018-01-15", "2018-02-19", "2018-05-28", 
+  "2018-06-19", "2018-07-04", "2018-09-03", "2018-11-12", 
+  "2018-11-22", "2018-12-25"
+))
+holidays_2019 <- as.Date(c(
+  "2019-01-01", "2019-01-21", "2019-02-18", "2019-05-27",
+  "2019-06-19", "2019-07-04", "2019-09-02", "2019-11-11",
+  "2019-11-28", "2019-12-25"
+))
+holidays_pre <- c(holidays_2018, holidays_2019)
+
+library(dplyr)
+
+A26024_pre <- A26024_pre %>%
+  filter(!StartDate %in% holidays_pre)
+
+holidays_2023 <- as.Date(c(
+  "2023-01-02", "2023-01-16", "2023-02-20", "2023-05-29", 
+  "2023-06-19", "2023-07-04", "2023-09-04", "2023-11-10", 
+  "2023-11-23", "2023-12-25"
+))
+holidays_2024 <- as.Date(c(
+  "2024-01-01", "2024-01-15", "2024-02-19", "2024-05-27",
+  "2024-06-19", "2024-07-04", "2024-09-02", "2024-11-11",
+  "2024-11-28", "2024-12-25"
+))
+holidays_post <- c(holidays_2023, holidays_2024)
+
+A26024_post <- A26024_post %>%
+  filter(!StartDate %in% holidays_post)
+```
+
+
+##filter d1_m1_2
+```{r}
+# Combine datasets while ensuring correct period assignment
+d1_m1_2data <- bind_rows(
+  A26024_pre %>%  
+    filter(year(StartDate) %in% c(2018, 2019), 
+           Month %in% c(1,2), 
+           Wday == 1, 
+           !StartDate %in% as.Date(c("2018-12-24", "2018-12-31"))  # Exclude specific dates if needed
+    ) %>%
+    mutate(Year = year(StartDate),  
+           Unique_Week = paste(Year, Week, sep = " "),
+           Period = "Pre"),  # Assign "Pre" period
+
+  A26024_post %>%  
+     filter(year(StartDate) %in% c(2023, 2024), 
+            Month %in% c(1,2), 
+            Wday == 1, 
+            !StartDate %in% as.Date(c("2023-01-03", "2023-02-22", "2023-02-23"))  # Exclude specific dates if needed
+     ) %>%
+    mutate(Year = year(StartDate),  
+           Unique_Week = paste(Year, Week, sep = " "),
+           Period = "Post")    
+)
+
+# Ensure Period is a factor with the correct order
+d1_m1_2data <- d1_m1_2data %>%
+  mutate(Period = factor(Period, levels = c("Pre", "Post")))
+
+# **Choose the hour where labels will be placed (e.g., 6 AM)**
+#label_hour <- 6  
+
+# Extract data points at the chosen hour
+#label_data <- d1_m1_2data %>%
+  #filter(Hour == label_hour) %>%
+  #mutate(Label = format(StartDate, "%Y-%m-%d"))  # Format StartDate for labeling
+
+# Aggregate hourly mean for each period
+hourly_mean_data <- d1_m1_2data %>%
+  group_by(Period, Hour) %>%
+  summarise(traffic_mean = mean(traffic_count, na.rm = TRUE), .groups = "drop")
+
+# **Create the plot**
+picture1_A24 <- ggplot(d1_m1_2data, aes(x = Hour, y = traffic_count)) +
+  
+  # Plot raw data with thin lines for individual days
+  geom_line(aes(group = StartDate, color = as.factor(Period)), linewidth = 0.2, alpha = 0.4) +
+
+  # Add trend lines (hourly mean for each period)
+  geom_line(data = hourly_mean_data, 
+            aes(x = Hour, y = traffic_mean, group = Period, color = as.factor(Period)), 
+            linewidth = 0.8) +
+
+  # **Add labels at the chosen hour**
+  #geom_text(data = label_data, 
+         #   aes(x = Hour, y = traffic_count, label = Label, color = as.factor(Period)),   
+         #   position = position_jitter(width = 0.2, height = 100),  # Jitter to avoid overlap  
+         #   size = 3, hjust = 0.5) +    
+
+  # Labels and themes
+  labs(title = "I205 Traffic Trends of Monday in Jan/Feb",
+       x = "Hour", y = "Traffic Count",
+       color = "Period") +
+
+ # Adjust x-axis tick frequency (every 3 hours)
+scale_x_continuous(breaks = seq(0, 23, by = 3), labels = seq(0, 23, by = 3))
+  
+   theme_minimal() +
+  theme(
+    aspect.ratio = 1/8,
+    legend.position = "bottom",  
+    axis.text.x = element_text(angle = 45, hjust = 1, size = 8)  
+  )
+print(picture1_A24)
+```
+
+#d1_m1_2 MMD
+```{r}
+library(kernlab)
+# Step 2: Split Data into Pre (2018) and Post (2023)
+d1_mmd_m1_2pre <- d1_m1_2data %>%
+  filter(Year %in% c(2018,2019)) %>% 
+  arrange(Week, Wday, Hour) %>%  # Order by Week, Day, Hour
+  group_by(Week, Wday) %>%  # Group each day separately
+  summarise(traffic_count = list(traffic_count), .groups = "drop")  # Store as list
+xi <- d1_mmd_m1_2pre$traffic_count
+
+d1_mmd_m1_2post <- d1_m1_2data %>%
+  filter(Year%in% c(2023,2024)) %>% 
+  arrange(Week, Wday, Hour) %>%  # Order by Week, Day, Hour
+  group_by(Week, Wday) %>%  # Group each day separately
+  summarise(traffic_count = list(traffic_count), .groups = "drop")  # Store as list
+yi <-d1_mmd_m1_2post$traffic_count
+
+#Each xi and yi is a 24-dimensional vector (one full day of hourly traffic).
+#Each weekend contributes two samples (Saturday & Sunday).
+
+# Convert xi and yi into matrices
+xi_matrix <- do.call(rbind, xi)  # Each row = one day's traffic (24 values)
+yi_matrix <- do.call(rbind, yi)
+
+# Ensure both datasets have the same dimensions
+if (ncol(xi_matrix) != ncol(yi_matrix)) {
+  stop("Mismatch in feature dimensions between xi and yi")
+}
+
+# Compute MMD using RBF Kernel
+
+mmd_result <- kmmd(xi_matrix, yi_matrix, kernel = "rbfdot",
+                 kpar = "automatic")
+mmd_stat <- mmd_result@mmdstats[1]
+mmd_sigma <- mmd_result@kernelf@kpar$sigma
+cat("A24_d1_m1_2_MMD Statistic:", mmd_result@mmdstats, "\n")
+
+mmd_perm <- replicate(5000, {
+  combined <- rbind(xi_matrix, yi_matrix)  
+  perm_indices <- sample(nrow(combined))
+  perm_x <- combined[perm_indices[1:nrow(xi_matrix)], ]
+  perm_y <- combined[perm_indices[(nrow(xi_matrix)+1):nrow(combined)], ]
+  kmmd(perm_x, perm_y, kernel = "rbfdot",
+        kpar = list(mmd_sigma))@mmdstats[1]
+})
+
+A24_d1_m1_2_p_value <- mean(mmd_perm >= mmd_stat)
+cat("A24_d1_m1_2_p-value:", A24_d1_m1_2_p_value, "\n")
+```
+
+
+##filter d4_m1_2 filter snowdays out
+```{r}
+# Combine datasets while ensuring correct period assignment
+d4_m1_2data <- bind_rows(
+  A26024_pre %>%  
+    filter(year(StartDate) %in% c(2018, 2019), 
+           Month %in% c(1,2), 
+           Wday == 4, 
+           !StartDate %in% as.Date(c("2018-02-22"))  # Exclude specific dates if needed
+    ) %>%
+    mutate(Year = year(StartDate),  
+           Unique_Week = paste(Year, Week, sep = " "),
+           Period = "Pre"),  # Assign "Pre" period
+
+  A26024_post %>%  
+     filter(year(StartDate) %in% c(2023, 2024), 
+            Month %in% c(1,2), 
+            Wday == 4, 
+            !StartDate %in% as.Date(c("2023-02-23","2024-01-18","2024-01-11"))  # Exclude specific dates if needed
+     ) %>%
+    mutate(Year = year(StartDate),  
+           Unique_Week = paste(Year, Week, sep = " "),
+           Period = "Post")    
+)
+
+# Ensure Period is a factor with the correct order
+d4_m1_2data <- d4_m1_2data %>%
+  mutate(Period = factor(Period, levels = c("Pre", "Post")))
+
+# **Choose the hour where labels will be placed (e.g., 6 AM)**
+#label_hour <- 6  
+
+# Extract data points at the chosen hour
+#label_data <- d4_m1_2data %>%
+  #filter(Hour == label_hour) %>%
+ # mutate(Label = format(StartDate, "%Y-%m-%d"))  # Format StartDate for labeling
+
+# Aggregate hourly mean for each period
+hourly_mean_data <- d4_m1_2data %>%
+  group_by(Period, Hour) %>%
+  summarise(traffic_mean = mean(traffic_count, na.rm = TRUE), .groups = "drop")
+
+# **Create the plot**
+ggplot(d4_m1_2data, aes(x = Hour, y = traffic_count)) +
+  
+  # Plot raw data with thin lines for individual days
+  geom_line(aes(group = StartDate, color = as.factor(Period)), linewidth = 0.2, alpha = 0.4) +
+
+  # Add trend lines (hourly mean for each period)
+  geom_line(data = hourly_mean_data, 
+            aes(x = Hour, y = traffic_mean, group = Period, color = as.factor(Period)), 
+            linewidth = 0.8) +
+
+  # **Add labels at the chosen hour**
+  #geom_text(data = label_data, 
+           # aes(x = Hour, y = traffic_count, label = Label, color = as.factor(Period)),   
+           # position = position_jitter(width = 0.2, height = 100),  # Jitter to avoid overlap  
+            #size = 3, hjust = 0.5) +    
+
+  # Labels and themes
+  labs(title = "Traffic Trends for Thursday (January & February, Grouped by Period)",
+       x = "Hour", y = "Traffic Count",
+       color = "Period") +
+
+ # Adjust x-axis tick frequency (every 3 hours)
+scale_x_continuous(breaks = seq(0, 23, by = 3), labels = seq(0, 23, by = 3))
+  
+   theme_minimal() +
+  theme(
+    aspect.ratio = 1/8,
+    legend.position = "bottom",  
+    axis.text.x = element_text(angle = 45, hjust = 1, size = 8)  
+  )
+```
+
+#d4_m1_2 MMD
+```{r}
+library(kernlab)
+# Step 2: Split Data into Pre (2018) and Post (2023)
+d4_mmd_m1_2pre <- d4_m1_2data %>%
+  filter(Year %in% c(2018,2019)) %>% 
+  arrange(Week, Wday, Hour) %>%  # Order by Week, Day, Hour
+  group_by(Week, Wday) %>%  # Group each day separately
+  summarise(traffic_count = list(traffic_count), .groups = "drop")  # Store as list
+xi <- d4_mmd_m1_2pre$traffic_count
+
+d4_mmd_m1_2post <- d4_m1_2data %>%
+  filter(Year%in% c(2023,2024)) %>% 
+  arrange(Week, Wday, Hour) %>%  # Order by Week, Day, Hour
+  group_by(Week, Wday) %>%  # Group each day separately
+  summarise(traffic_count = list(traffic_count), .groups = "drop")  # Store as list
+yi <-d4_mmd_m1_2post$traffic_count
+
+#Each xi and yi is a 24-dimensional vector (one full day of hourly traffic).
+#Each weekend contributes two samples (Saturday & Sunday).
+
+# Convert xi and yi into matrices
+xi_matrix <- do.call(rbind, xi)  # Each row = one day's traffic (24 values)
+yi_matrix <- do.call(rbind, yi)
+
+# Ensure both datasets have the same dimensions
+if (ncol(xi_matrix) != ncol(yi_matrix)) {
+  stop("Mismatch in feature dimensions between xi and yi")
+}
+
+# Compute MMD using RBF Kernel
+
+mmd_result <- kmmd(xi_matrix, yi_matrix, kernel = "rbfdot",
+                 kpar = "automatic")
+mmd_stat <- mmd_result@mmdstats[1]
+mmd_sigma <- mmd_result@kernelf@kpar$sigma
+cat("A24_d4_m1_2_MMD Statistic:", mmd_result@mmdstats, "\n")
+
+mmd_perm <- replicate(5000, {
+  combined <- rbind(xi_matrix, yi_matrix)  
+  perm_indices <- sample(nrow(combined))
+  perm_x <- combined[perm_indices[1:nrow(xi_matrix)], ]
+  perm_y <- combined[perm_indices[(nrow(xi_matrix)+1):nrow(combined)], ]
+  kmmd(perm_x, perm_y, kernel = "rbfdot",
+        kpar = list(mmd_sigma))@mmdstats[1]
+})
+
+A24_d4_m1_2_p_value <- mean(mmd_perm >= mmd_stat)
+cat("A24_d4_m1_2_p-value:", A24_d4_m1_2_p_value, "\n")
+```
+
+
+#filter d5_m1_2 # attention 2023/02/24 snowday
+```{r}
+library(ggrepel)  # Avoids overlapping labels
+d5_m1_2_data <- bind_rows(
+  A26024_pre %>%  
+    filter(year(StartDate) == 2018, Month %in% c(1,2), Wday == 5) %>%
+    mutate(Year = year(StartDate), 
+           Unique_Week = paste(Year, Week, sep = " "),
+           Period = "Pre"),  # Unique week number
+
+  A26024_post %>%  
+    filter(year(StartDate) == 2023, 
+           Month %in% c(1,2), 
+           Wday == 5, 
+           !StartDate %in% as.Date(c("2023-02-24", "2023-01-04"))) %>%  # Correct way to exclude multiple dates
+    mutate(Year = year(StartDate), 
+           Unique_Week = paste(Year, Week, sep = " "),
+           Period = "Post")    
+)
+# Aggregate hourly mean for each month
+hourly_mean_data <- d5_m1_2_data %>%
+  group_by(Period, Hour) %>%
+  summarise(traffic_mean = mean(traffic_count, na.rm = TRUE), .groups = "drop")
+
+# **Choose the hour where labels will be placed (e.g., 12 PM)**
+ #label_hour <- 15  # Adjust this to any hour you want
+# Extract data points at the chosen hour
+ #label_data <- d5_m1_2_data %>%
+ # filter(Hour == label_hour) %>%
+ # mutate(Label = format(StartDate, "%Y-%m-%d"))  # Format StartDate for labeling
+
+# Plot grouped by day, colored by month, with mean trend line
+picture11_A24 <- ggplot(d5_m1_2_data, aes(x = Hour, y = traffic_count)) +
+  
+  # Plot raw data with thin lines for individual days
+  geom_line(aes(group = StartDate, color = as.factor(Period)), linewidth = 0.2, alpha = 0.4) +
+  
+  # Add trend lines (hourly mean for each month)
+  geom_line(data = hourly_mean_data, aes(x = Hour, y = traffic_mean, group = Period, color = as.factor(Period)),
+            linewidth = 0.8) +
+
+# **Add labels at the chosen hour for each day's line**
+  #geom_text(data = label_data, aes(label = Label),   
+       #     position = position_jitter(width = 0.2, height = 100),  # Jitter to avoid overlap  
+        #    size = 3, hjust = 0.5) +  
+  
+  # Labels and themes
+  labs(title = "I205 Traffic Trends of Friday in Jan/Feb",
+       x = "Hour", y = "Traffic Count",
+       color = "Period") +
+  
+ # Adjust x-axis tick frequency (every 3 hours)
+scale_x_continuous(breaks = seq(0, 23, by = 3), labels = seq(0, 23, by = 3))
+  
+   theme_minimal() +
+  theme(
+    aspect.ratio = 1/8,
+    legend.position = "bottom",  
+    axis.text.x = element_text(angle = 45, hjust = 1, size = 8)  
+  ) 
+   print(picture11_A24)
+```
+
+# d5_m1_2 MMD
+```{r}
+# Step 2: Split Data into Pre (2018) and Post (2023)
+d5_mmd_m1_2_pre <- d5_m1_2_data %>%
+  filter(Year == 2018) %>%  # Select March 2018 weekends
+  arrange(Week, Wday, Hour) %>%  # Order by Week, Day, Hour
+  group_by(Week, Wday) %>%  # Group each day separately
+  summarise(traffic_count = list(traffic_count), .groups = "drop")  # Store as list
+xi <- d5_mmd_m1_2_pre$traffic_count
+
+d5_mmd_m1_2_post <- d5_m1_2_data %>%
+  filter(Year == 2023) %>%  # Select March 2018 weekends
+  arrange(Week, Wday, Hour) %>%  # Order by Week, Day, Hour
+  group_by(Week, Wday) %>%  # Group each day separately
+  summarise(traffic_count = list(traffic_count), .groups = "drop")  # Store as list
+yi <-d5_mmd_m1_2_post$traffic_count
+
+#Each xi and yi is a 24-dimensional vector (one full day of hourly traffic).
+#Each weekend contributes two samples (Saturday & Sunday).
+
+# Convert xi and yi into matrices
+xi_matrix <- do.call(rbind, xi)  # Each row = one day's traffic (24 values)
+yi_matrix <- do.call(rbind, yi)
+
+# Ensure both datasets have the same dimensions
+if (ncol(xi_matrix) != ncol(yi_matrix)) {
+  stop("Mismatch in feature dimensions between xi and yi")
+}
+# Compute MMD using RBF Kernel
+
+mmd_result <- kmmd(xi_matrix, yi_matrix, kernel = "rbfdot",
+                 kpar = "automatic")
+mmd_stat <- mmd_result@mmdstats[1]
+mmd_sigma <- mmd_result@kernelf@kpar$sigma
+cat("A24_d5_m1_2_MMD Statistic:", mmd_result@mmdstats, "\n")
+
+mmd_perm <- replicate(5000, {
+  combined <- rbind(xi_matrix, yi_matrix)  
+  perm_indices <- sample(nrow(combined))
+  perm_x <- combined[perm_indices[1:nrow(xi_matrix)], ]
+  perm_y <- combined[perm_indices[(nrow(xi_matrix)+1):nrow(combined)], ]
+  kmmd(perm_x, perm_y, kernel = "rbfdot",
+        kpar = list(mmd_sigma))@mmdstats[1]
+})
+
+A24_d5_m1_2_p_value <- mean(mmd_perm >= mmd_stat)
+cat("A24_d5_m1_2_p-value:", A24_d5_m1_2_p_value, "\n")
+
+```
+
+
+
+#filter data weedend m1_2
+```{r}
+wed_m1_2_data <- bind_rows(
+  A26024_pre %>%  
+    filter((year(StartDate) == 2018 & Month %in% c(1,2) & Wday %in% 6:7)) %>%
+    mutate(Year = year(StartDate), 
+           Unique_Week = paste(Year, Week, sep = " "),
+           Period = "Pre"),  # unique week no.
+
+  A26024_post %>%  
+    filter(year(StartDate) == 2023, Month %in% c(1,2), Wday %in% 6:7) %>%
+    mutate(Year = year(StartDate), 
+           Unique_Week = paste(Year, Week, sep = " "),
+           Period = "Post")    
+)
+wed_m1_2_data <- wed_m1_2_data %>%
+  mutate(Period = factor(Period, levels = c("Pre", "Post")))
+
+# **Choose the hour where labels will be placed (e.g., 12 PM)**
+ #label_hour <- 12  # Adjust this to any hour you want
+# Extract data points at the chosen hour
+ #label_data <- wed_m1_2_data %>%
+  #filter(Hour == label_hour) %>%
+  #mutate(Label = format(StartDate, "%Y-%m-%d"))  # Format StartDate for labeling
+
+#plot m4_5_9_10 weekend
+
+# Aggregate hourly mean for each month
+hourly_mean_data <- wed_m1_2_data %>%
+  group_by(Period, Hour) %>%
+  summarise(traffic_mean = mean(traffic_count, na.rm = TRUE), .groups = "drop")
+
+# Plot grouped by day, colored by month, with mean trend line
+picture16_A24 <- ggplot(wed_m1_2_data, aes(x = Hour, y = traffic_count)) +
+  
+  # Plot raw data with thin lines for individual days
+  geom_line(aes(group = StartDate, color = as.factor(Period)), linewidth = 0.2, alpha = 0.4) +
+  
+  # Add trend lines (hourly mean for each month)
+  geom_line(data = hourly_mean_data, aes(x = Hour, y = traffic_mean, group = Period, color = as.factor(Period)),
+            linewidth = 0.8) +
+
+  # **Add labels at the chosen hour for each day's line**
+  #geom_text(data = label_data, aes(label = Label),   
+            #position = position_jitter(width = 0.2, height = 100),  # Jitter to avoid overlap  
+            #size = 3, hjust = 0.5) +    
+  # Labels and themes
+  labs(title = "I205 Traffic Trends of Weekend in Jan/Feb",
+       x = "Hour", y = "Traffic Count",
+       color = "Period") +
+  
+  # Adjust x-axis tick frequency (every 3 hours)
+scale_x_continuous(breaks = seq(0, 23, by = 3), labels = seq(0, 23, by = 3))
+  
+   theme_minimal() +
+  theme(
+    aspect.ratio = 1/3,
+    legend.position = "bottom",  
+    axis.text.x = element_text(angle = 45, hjust = 1, size = 8)  
+  )
+   print(picture16_A24)
+```
+
+# mmd for m1_2 weekend
+```{r}
+# Step 2: Split Data into Pre (2018) and Post (2023)
+mmd_m1_2wed_pre <- wed_m1_2_data %>%
+  filter(Year == 2018) %>%  # Select March 2018 weekends
+  arrange(Week, Wday, Hour) %>%  # Order by Week, Day, Hour
+  group_by(Week, Wday) %>%  # Group each day separately
+  summarise(traffic_count = list(traffic_count), .groups = "drop")  # Store as list
+xi <- mmd_m1_2wed_pre$traffic_count
+
+mmd_m1_2wed_post_23 <- wed_m1_2_data %>%
+  filter(Year == 2023) %>%  # Select March 2018 weekends
+  arrange(Week, Wday, Hour) %>%  # Order by Week, Day, Hour
+  group_by(Week, Wday) %>%  # Group each day separately
+  summarise(traffic_count = list(traffic_count), .groups = "drop")  # Store as list
+yi <- mmd_m1_2wed_post_23$traffic_count
+
+#Each xi and yi is a 24-dimensional vector (one full day of hourly traffic).
+#Each weekend contributes two samples (Saturday & Sunday).
+
+# Convert xi and yi into matrices
+xi_matrix <- do.call(rbind, xi)  # Each row = one day's traffic (24 values)
+yi_matrix <- do.call(rbind, yi)
+
+# Ensure both datasets have the same dimensions
+if (ncol(xi_matrix) != ncol(yi_matrix)) {
+  stop("Mismatch in feature dimensions between xi and yi")
+}
+
+# Compute MMD using RBF Kernel
+
+mmd_result <- kmmd(xi_matrix, yi_matrix, kernel = "rbfdot",
+                 kpar = "automatic")
+mmd_stat <- mmd_result@mmdstats[1]
+mmd_sigma <- mmd_result@kernelf@kpar$sigma
+cat("A24_m1_2wed_MMD Statistic:", mmd_result@mmdstats, "\n")
+
+mmd_perm <- replicate(5000, {
+  combined <- rbind(xi_matrix, yi_matrix)  
+  perm_indices <- sample(nrow(combined))
+  perm_x <- combined[perm_indices[1:nrow(xi_matrix)], ]
+  perm_y <- combined[perm_indices[(nrow(xi_matrix)+1):nrow(combined)], ]
+  kmmd(perm_x, perm_y, kernel = "rbfdot",
+        kpar = list(mmd_sigma))@mmdstats[1]
+})
+
+A24_wed_m1_2_p_value <- mean(mmd_perm >= mmd_stat)
+cat("A24_wed_m1_2_p_value:", A24_wed_m1_2_p_value, "\n")
+```
+
+#filter data weekdays m1_2 
+# attention 2018/02/20,21 2023/1/03 和2023/02/22,23 snow days
+```{r}
+wek_m1_2_data <- bind_rows(
+  
+  # Filter and process A26004_pre dataset
+  A26024_pre %>%
+    filter(year(StartDate) == 2018, 
+           Month %in% c(1,2), 
+           Wday %in% c(2:4), 
+           !StartDate %in% as.Date(c("2018-02-20", "2018-02-21"))  # Exclude snow days
+    ) %>%
+    mutate(Year = year(StartDate),  
+           Unique_Week = paste(Year, Week, sep = " "),  
+           Period = "Pre"),  # Tag as "Pre" period
+
+  # Filter and process A26004_post dataset
+  A26024_post %>%  
+    filter(year(StartDate) == 2023, 
+           Month %in% c(1,2), 
+           Wday %in% c(2:4), 
+           !StartDate %in% as.Date(c("2023-01-03", "2023-02-22", "2023-02-23"))  # Exclude snow days
+    ) %>%
+    mutate(Year = year(StartDate),  
+           Unique_Week = paste(Year, Week, sep = " "),  
+           Period = "Post")    
+)
+wek_m1_2_data <- wek_m1_2_data %>%
+  mutate(Period = factor(Period, levels = c("Pre", "Post")))
+
+#plot m4_5_9_10 weekend
+
+# **Choose the hour where labels will be placed (e.g., 12 PM)**
+ #label_hour <- 16  # Adjust this to any hour you want
+# Extract data points at the chosen hour
+ #label_data <- wek_m1_2_data %>%
+ # filter(Hour == label_hour) %>%
+  #mutate(Label = format(StartDate, "%Y-%m-%d"))  # Format StartDate for labeling
+ 
+# Aggregate hourly mean for each month
+hourly_mean_data <- wek_m1_2_data %>%
+  group_by(Period, Hour) %>%
+  summarise(traffic_mean = mean(traffic_count, na.rm = TRUE), .groups = "drop")
+
+# Plot grouped by day, colored by month, with mean trend line
+picture6_A24 <- ggplot(wek_m1_2_data, aes(x = Hour, y = traffic_count)) +
+  
+  # Plot raw data with thin lines for individual days
+  geom_line(aes(group = StartDate, color = as.factor(Period)), linewidth = 0.2, alpha = 0.4) +
+  
+  # Add trend lines (hourly mean for each month)
+  geom_line(data = hourly_mean_data, aes(x = Hour, y = traffic_mean, group = Period, color = as.factor(Period)),
+            linewidth = 0.8) +
+  # **Add labels at the chosen hour for each day's line**
+  #geom_text(data = label_data, aes(label = Label),   
+            #position = position_jitter(width = 0.2, height = 100),  # Jitter to avoid overlap  
+            #size = 3, hjust = 0.5) +     
+  # Labels and themes
+  labs(title = "I205 Traffic Trends of Tue/Wed/Thur in Jan/Feb",
+       x = "Hour", y = "Traffic Count",
+       color = "Period") +
+  
+  # Adjust x-axis tick frequency (every 3 hours)
+scale_x_continuous(breaks = seq(0, 23, by = 3), labels = seq(0, 23, by = 3))
+  
+   theme_minimal() +
+  theme(
+    aspect.ratio = 1/8,
+    legend.position = "bottom",  
+    axis.text.x = element_text(angle = 45, hjust = 1, size = 8)  
+  )
+   print(picture6_A24)
+```
+## mmd for m1_2 weekdays
+```{r}
+# Step 2: Split Data into Pre (2018) and Post (2023)
+mmd_m1_2wek_pre <- wek_m1_2_data %>%
+  filter(Year == 2018) %>%  # Select March 2018 weekends
+  arrange(Week, Wday, Hour) %>%  # Order by Week, Day, Hour
+  group_by(Week, Wday) %>%  # Group each day separately
+  summarise(traffic_count = list(traffic_count), .groups = "drop")  # Store as list
+xi <- mmd_m1_2wek_pre$traffic_count
+
+mmd_m1_2wek_post_23 <- wek_m1_2_data %>%
+  filter(Year == 2023) %>%  # Select March 2018 weekends
+  arrange(Week, Wday, Hour) %>%  # Order by Week, Day, Hour
+  group_by(Week, Wday) %>%  # Group each day separately
+  summarise(traffic_count = list(traffic_count), .groups = "drop")  # Store as list
+yi <- mmd_m1_2wek_post_23$traffic_count
+
+#Each xi and yi is a 24-dimensional vector (one full day of hourly traffic).
+#Each weekend contributes two samples (Saturday & Sunday).
+# Convert xi and yi into matrices
+xi_matrix <- do.call(rbind, xi)  # Each row = one day's traffic (24 values)
+yi_matrix <- do.call(rbind, yi)
+
+# Ensure both datasets have the same dimensions
+if (ncol(xi_matrix) != ncol(yi_matrix)) {
+  stop("Mismatch in feature dimensions between xi and yi")
+}
+
+# Compute MMD using RBF Kernel
+
+mmd_result <- kmmd(xi_matrix, yi_matrix, kernel = "rbfdot",
+                 kpar = "automatic")
+mmd_stat <- mmd_result@mmdstats[1]
+mmd_sigma <- mmd_result@kernelf@kpar$sigma
+cat("A24_m1_2wek_MMD Statistic:", mmd_result@mmdstats, "\n")
+
+mmd_perm <- replicate(5000, {
+  combined <- rbind(xi_matrix, yi_matrix)  
+  perm_indices <- sample(nrow(combined))
+  perm_x <- combined[perm_indices[1:nrow(xi_matrix)], ]
+  perm_y <- combined[perm_indices[(nrow(xi_matrix)+1):nrow(combined)], ]
+  kmmd(perm_x, perm_y, kernel = "rbfdot",
+        kpar = list(mmd_sigma))@mmdstats[1]
+})
+
+A24_wek_m1_2_p_value <- mean(mmd_perm >= mmd_stat)
+cat("A24_wek_m1_2_p-value:", A24_wek_m1_2_p_value, "\n")
+```
+
+
+
+#filter d1_m3 data
+```{r}
+# Combine datasets and correctly assign "Pre" and "Post" periods
+d1_m3_data <- bind_rows(
+  A26024_pre %>%  
+    filter(year(StartDate) %in% c(2018, 2019), Month == 3, Wday == 1) %>%
+    mutate(Year = year(StartDate), 
+           Unique_Week = paste(Year, Week, sep = " "),
+           Period = "Pre"),  # Assign "Pre" period
+
+  A26024_post %>%  
+    filter(year(StartDate) %in% c(2023, 2024), Month == 3, Wday == 1) %>%
+    mutate(Year = year(StartDate), 
+           Unique_Week = paste(Year, Week, sep = " "),
+           Period = "Post")  # Assign "Post" period
+)
+
+# Aggregate hourly mean for each period
+hourly_mean_data <- d1_m3_data %>%
+  group_by(Period, Hour) %>%
+  summarise(traffic_mean = mean(traffic_count, na.rm = TRUE), .groups = "drop")
+
+# Plot grouped by period instead of year
+picture2_A24 <- ggplot(d1_m3_data, aes(x = Hour, y = traffic_count)) +
+  
+  # Plot raw data with thin lines for individual days, colored by Period
+  geom_line(aes(group = StartDate, color = as.factor(Period)), linewidth = 0.2, alpha = 0.2) +
+  
+  # Add trend lines (hourly mean for each period)
+  geom_line(data = hourly_mean_data, aes(x = Hour, y = traffic_mean, group = Period, color = as.factor(Period)),
+            linewidth = 0.8) +
+  
+  # Labels and themes
+  labs(title = "I205 Traffic Trends of Monday in March",
+       x = "Hour", y = "Traffic Count",
+       color = "Period") +
+
+ # Adjust x-axis tick frequency (every 3 hours)
+scale_x_continuous(breaks = seq(0, 23, by = 3), labels = seq(0, 23, by = 3))
+  
+   theme_minimal() +
+  theme(
+    aspect.ratio = 1/8,
+    legend.position = "bottom",  
+    axis.text.x = element_text(angle = 45, hjust = 1, size = 8)  
+  )
+print(picture2_A24)
+```
+
+#d1_m3 MMD
+```{r}
+# Step 2: Split Data into Pre (2018) and Post (2023)
+d1_mmd_m3 <- d1_m3_data %>%
+  filter(Year == 2018) %>%  # Select March 2018 weekends
+  arrange(Week, Wday, Hour) %>%  # Order by Week, Day, Hour
+  group_by(Week, Wday) %>%  # Group each day separately
+  summarise(traffic_count = list(traffic_count), .groups = "drop")  # Store as list
+xi <- d1_mmd_m3$traffic_count
+
+d1_mmd_m3_post_23 <- d1_m3_data %>%
+  filter(Year == 2023) %>%  # Select March 2018 weekends
+  arrange(Week, Wday, Hour) %>%  # Order by Week, Day, Hour
+  group_by(Week, Wday) %>%  # Group each day separately
+  summarise(traffic_count = list(traffic_count), .groups = "drop")  # Store as list
+yi <- d1_mmd_m3_post_23$traffic_count
+
+#Each xi and yi is a 24-dimensional vector (one full day of hourly traffic).
+#Each weekend contributes two samples (Saturday & Sunday).
+
+# Convert xi and yi into matrices
+xi_matrix <- do.call(rbind, xi)  # Each row = one day's traffic (24 values)
+yi_matrix <- do.call(rbind, yi)
+
+# Ensure both datasets have the same dimensions
+if (ncol(xi_matrix) != ncol(yi_matrix)) {
+  stop("Mismatch in feature dimensions between xi and yi")
+}
+# Compute MMD using RBF Kernel
+
+mmd_result <- kmmd(xi_matrix, yi_matrix, kernel = "rbfdot",
+                 kpar = "automatic")
+mmd_stat <- mmd_result@mmdstats[1]
+mmd_sigma <- mmd_result@kernelf@kpar$sigma
+cat("A24_d1_m3_MMD Statistic:", mmd_result@mmdstats, "\n")
+
+mmd_perm <- replicate(5000, {
+  combined <- rbind(xi_matrix, yi_matrix)  
+  perm_indices <- sample(nrow(combined))
+  perm_x <- combined[perm_indices[1:nrow(xi_matrix)], ]
+  perm_y <- combined[perm_indices[(nrow(xi_matrix)+1):nrow(combined)], ]
+  kmmd(perm_x, perm_y, kernel = "rbfdot",
+        kpar = list(mmd_sigma))@mmdstats[1]
+})
+
+A24_d1_m3_p_value <- mean(mmd_perm >= mmd_stat)
+cat("A24_d1_m3_p-value:", A24_d1_m3_p_value, "\n")
+
+```
+
+
+
+#filter d4_m3 data
+```{r}
+# Combine datasets and correctly assign "Pre" and "Post" periods
+d4_m3_data <- bind_rows(
+  A26024_pre %>%  
+    filter(year(StartDate) %in% c(2018, 2019), Month == 3, Wday == 4) %>%
+    mutate(Year = year(StartDate), 
+           Unique_Week = paste(Year, Week, sep = " "),
+           Period = "Pre"),  # Assign "Pre" period
+
+  A26024_post %>%  
+    filter(year(StartDate) %in% c(2023, 2024), Month == 3, Wday == 4) %>%
+    mutate(Year = year(StartDate), 
+           Unique_Week = paste(Year, Week, sep = " "),
+           Period = "Post")  # Assign "Post" period
+)
+# **Choose the hour where labels will be placed (e.g., 6 AM)**
+#label_hour <- 9
+
+# Extract data points at the chosen hour
+#  filter(Hour == label_hour) %>%
+  #mutate(Label = format(StartDate, "%Y-%m-%d"))  # Format StartDate for labeling
+
+ #Aggregate hourly mean for each period
+ 
+hourly_mean_data <- d4_m3_data %>%
+  group_by(Period, Hour) %>%
+  summarise(traffic_mean = mean(traffic_count, na.rm = TRUE), .groups = "drop")
+
+# Plot grouped by period instead of year
+ggplot(d4_m3_data, aes(x = Hour, y = traffic_count)) +
+  
+  # Plot raw data with thin lines for individual days, colored by Period
+  geom_line(aes(group = StartDate, color = as.factor(Period)), linewidth = 0.3, alpha = 0.4) +
+  
+  # Add trend lines (hourly mean for each period)
+  geom_line(data = hourly_mean_data, aes(x = Hour, y = traffic_mean, group = Period, color = as.factor(Period)),
+            linewidth = 0.8) +
+    # **Add labels at the chosen hour**
+ # geom_text(data = label_data, 
+        #    aes(x = Hour, y = traffic_count, label = Label, color = as.factor(Period)),   
+          #  position = position_jitter(width = 0.2, height = 100),  # Jitter to avoid overlap  
+         #   size = 3, hjust = 0.5) +    
+
+  # Labels and themes
+  labs(title = "Traffic Trends for Thursday in March (Grouped by Period)",
+       x = "Hour", y = "Traffic Count",
+       color = "Period") +
+
+# Adjust x-axis tick frequency (every 3 hours)
+scale_x_continuous(breaks = seq(0, 23, by = 3), labels = seq(0, 23, by = 3))
+  
+   theme_minimal() +
+  theme(
+    aspect.ratio = 1/8,
+    legend.position = "bottom",  
+    axis.text.x = element_text(angle = 45, hjust = 1, size = 8)  
+  )
+```
+
+#d4_m3 MMD
+```{r}
+# Step 2: Split Data into Pre (2018) and Post (2023)
+d4_mmd_m3 <- d4_m3_data %>%
+  filter(Year == 2018) %>%  # Select March 2018 weekends
+  arrange(Week, Wday, Hour) %>%  # Order by Week, Day, Hour
+  group_by(Week, Wday) %>%  # Group each day separately
+  summarise(traffic_count = list(traffic_count), .groups = "drop")  # Store as list
+xi <- d4_mmd_m3$traffic_count
+
+d4_mmd_m3_post_23 <- d4_m3_data %>%
+  filter(Year == 2023) %>%  
+  arrange(Week, Wday, Hour) %>%  # Order by Week, Day, Hour
+  group_by(Week, Wday) %>%  # Group each day separately
+  summarise(traffic_count = list(traffic_count), .groups = "drop")  # Store as list
+yi <- d4_mmd_m3_post_23$traffic_count
+
+#Each xi and yi is a 24-dimensional vector (one full day of hourly traffic).
+
+# Convert xi and yi into matrices
+xi_matrix <- do.call(rbind, xi)  # Each row = one day's traffic (24 values)
+yi_matrix <- do.call(rbind, yi)
+
+# Ensure both datasets have the same dimensions
+if (ncol(xi_matrix) != ncol(yi_matrix)) {
+  stop("Mismatch in feature dimensions between xi and yi")
+}
+# Compute MMD using RBF Kernel
+
+mmd_result <- kmmd(xi_matrix, yi_matrix, kernel = "rbfdot",
+                 kpar = "automatic")
+mmd_stat <- mmd_result@mmdstats[1]
+mmd_sigma <- mmd_result@kernelf@kpar$sigma
+cat("A24_d4_m3_MMD Statistic:", mmd_result@mmdstats, "\n")
+
+mmd_perm <- replicate(5000, {
+  combined <- rbind(xi_matrix, yi_matrix)  
+  perm_indices <- sample(nrow(combined))
+  perm_x <- combined[perm_indices[1:nrow(xi_matrix)], ]
+  perm_y <- combined[perm_indices[(nrow(xi_matrix)+1):nrow(combined)], ]
+  kmmd(perm_x, perm_y, kernel = "rbfdot",
+        kpar = list(mmd_sigma))@mmdstats[1]
+})
+
+A24_d4_m3_p_value <- mean(mmd_perm >= mmd_stat)
+cat("A24_d4_m3_p-value:", A24_d1_m3_p_value, "\n")
+
+```
+
+
+#filter d5_m3 and plot
+```{r}
+# Combine datasets and correctly assign "Pre" and "Post" periods
+d5_m3_data <- bind_rows(
+  A26024_pre %>%  
+    filter(year(StartDate) %in% c(2018, 2019), Month == 3, Wday == 5) %>%
+    mutate(Year = year(StartDate), 
+           Unique_Week = paste(Year, Week, sep = " "),
+           Period = "Pre"),  # Assign "Pre" period
+
+  A26024_post %>%  
+    filter(year(StartDate) %in% c(2023, 2024), Month == 3, Wday == 5) %>%
+    mutate(Year = year(StartDate), 
+           Unique_Week = paste(Year, Week, sep = " "),
+           Period = "Post")  # Assign "Post" period
+)
+
+# Aggregate hourly mean for each period
+hourly_mean_data <- d5_m3_data %>%
+  group_by(Period, Hour) %>%
+  summarise(traffic_mean = mean(traffic_count, na.rm = TRUE), .groups = "drop")
+
+# Plot grouped by period instead of year
+picture12_A24 <- ggplot(d5_m3_data, aes(x = Hour, y = traffic_count)) +
+  
+  # Plot raw data with thin lines for individual days, colored by Period
+  geom_line(aes(group = StartDate, color = as.factor(Period)), linewidth = 0.3, alpha = 0.4) +
+  
+  # Add trend lines (hourly mean for each period)
+  geom_line(data = hourly_mean_data, aes(x = Hour, y = traffic_mean, group = Period, color = as.factor(Period)),
+            linewidth = 0.8) +
+  
+  # Labels and themes
+  labs(title = "I205 Traffic Trends of Friday in March",
+       x = "Hour", y = "Traffic Count",
+       color = "Period") +
+
+# Adjust x-axis tick frequency (every 3 hours)
+scale_x_continuous(breaks = seq(0, 23, by = 3), labels = seq(0, 23, by = 3))
+  
+   theme_minimal() +
+  theme(
+    aspect.ratio = 1/8,
+    legend.position = "bottom",  
+    axis.text.x = element_text(angle = 45, hjust = 1, size = 8)  
+  )
+   print(picture12_A24)
+```
+
+# d5_m3_MMD
+```{r}
+# Step 2: Split Data into Pre (2018) and Post (2023)
+d5_mmd_m3 <- d5_m3_data %>%
+  filter(Year %in% c("2018","2019")) %>%  # Select March 2018 weekends
+  arrange(Week, Wday, Hour) %>%  # Order by Week, Day, Hour
+  group_by(Week, Wday) %>%  # Group each day separately
+  summarise(traffic_count = list(traffic_count), .groups = "drop")  # Store as list
+xi <- d5_mmd_m3$traffic_count
+
+d5_mmd_m3_post_23 <- d5_m3_data %>%
+  filter(Year %in% c("2023","2024")) %>%  # Select March 2018 weekends
+  arrange(Week, Wday, Hour) %>%  # Order by Week, Day, Hour
+  group_by(Week, Wday) %>%  # Group each day separately
+  summarise(traffic_count = list(traffic_count), .groups = "drop")  # Store as list
+yi <- d5_mmd_m3_post_23$traffic_count
+
+#Each xi and yi is a 24-dimensional vector (one full day of hourly traffic).
+#Each weekend contributes two samples (Saturday & Sunday).
+
+
+# Convert xi and yi into matrices
+xi_matrix <- do.call(rbind, xi)  # Each row = one day's traffic (24 values)
+yi_matrix <- do.call(rbind, yi)
+
+# Ensure both datasets have the same dimensions
+if (ncol(xi_matrix) != ncol(yi_matrix)) {
+  stop("Mismatch in feature dimensions between xi and yi")
+}
+
+# Compute MMD using RBF Kernel
+
+mmd_result <- kmmd(xi_matrix, yi_matrix, kernel = "rbfdot",
+                 kpar = "automatic")
+mmd_stat <- mmd_result@mmdstats[1]
+mmd_sigma <- mmd_result@kernelf@kpar$sigma
+cat("A24_d5_m3_MMD Statistic:", mmd_result@mmdstats, "\n")
+
+mmd_perm <- replicate(5000, {
+  combined <- rbind(xi_matrix, yi_matrix)  
+  perm_indices <- sample(nrow(combined))
+  perm_x <- combined[perm_indices[1:nrow(xi_matrix)], ]
+  perm_y <- combined[perm_indices[(nrow(xi_matrix)+1):nrow(combined)], ]
+  kmmd(perm_x, perm_y, kernel = "rbfdot",
+        kpar = list(mmd_sigma))@mmdstats[1]
+})
+
+A24_d5_m3_p_value <- mean(mmd_perm >= mmd_stat)
+cat("A24_d5_m3_p-value:", A24_d5_m3_p_value, "\n")
+
+```
+
+
+#filter data march weekend
+```{r}
+# Combine datasets and correctly assign "Pre" and "Post" periods
+wed_m3_data <- bind_rows(
+  A26024_pre %>%  
+    filter(year(StartDate) %in% c(2018, 2019), Month == 3, Wday %in% 6:7) %>%
+    mutate(Year = year(StartDate), 
+           Unique_Week = paste(Year, Week, sep = " "),
+           Period = "Pre"),  # Assign "Pre" period
+
+  A26024_post %>%  
+    filter(year(StartDate) %in% c(2023, 2024), Month == 3, Wday %in% 6:7) %>%
+    mutate(Year = year(StartDate), 
+           Unique_Week = paste(Year, Week, sep = " "),
+           Period = "Post")  # Assign "Post" period
+)
+wed_m3_data <- wed_m3_data %>%
+  mutate(Period = factor(Period, levels = c("Pre", "Post")))
+# Aggregate hourly mean for each period
+hourly_mean_data <- wed_m3_data %>%
+  group_by(Period, Hour) %>%
+  summarise(traffic_mean = mean(traffic_count, na.rm = TRUE), .groups = "drop")
+
+# Plot grouped by period instead of year
+picture17_A24 <- ggplot(wed_m3_data, aes(x = Hour, y = traffic_count)) +
+  
+  # Plot raw data with thin lines for individual days, colored by Period
+  geom_line(aes(group = StartDate, color = as.factor(Period)), linewidth = 0.3, alpha = 0.4) +
+  
+  # Add trend lines (hourly mean for each period)
+  geom_line(data = hourly_mean_data, aes(x = Hour, y = traffic_mean, group = Period, color = as.factor(Period)),
+            linewidth = 0.8) +
+  
+  # Labels and themes
+  labs(title = "I205 Traffic Trends of Weekend in March",
+       x = "Hour", y = "Traffic Count",
+       color = "Period") +
+
+# Adjust x-axis tick frequency (every 3 hours)
+scale_x_continuous(breaks = seq(0, 23, by = 3), labels = seq(0, 23, by = 3))
+  
+   theme_minimal() +
+  theme(
+    aspect.ratio = 1/8,
+    legend.position = "bottom",  
+    axis.text.x = element_text(angle = 45, hjust = 1, size = 8)  
+  )
+   print(picture17_A24)
+```
+
+# weekend MMD march
+```{r}
+# Step 2: Split Data into Pre (2018) and Post (2023)
+mmd_m3_pre_18 <- wed_m3_data %>%
+  filter(Year %in% c("2018","2019")) %>%  # Select March 2018 weekends
+  arrange(Week, Wday, Hour) %>%  # Order by Week, Day, Hour
+  group_by(Week, Wday) %>%  # Group each day separately
+  summarise(traffic_count = list(traffic_count), .groups = "drop")  # Store as list
+xi <- mmd_m3_pre_18$traffic_count
+
+mmd_m3_post_23 <- wed_m3_data %>%
+  filter(Year %in% c("2023","2024")) %>%  # Select March 2018 weekends
+  arrange(Week, Wday, Hour) %>%  # Order by Week, Day, Hour
+  group_by(Week, Wday) %>%  # Group each day separately
+  summarise(traffic_count = list(traffic_count), .groups = "drop")  # Store as list
+yi <- mmd_m3_post_23$traffic_count
+
+#Each xi and yi is a 24-dimensional vector (one full day of hourly traffic).
+#Each weekend contributes two samples (Saturday & Sunday).
+
+# Convert xi and yi into matrices
+xi_matrix <- do.call(rbind, xi)  # Each row = one day's traffic (24 values)
+yi_matrix <- do.call(rbind, yi)
+# Ensure both datasets have the same dimensions
+if (ncol(xi_matrix) != ncol(yi_matrix)) {
+  stop("Mismatch in feature dimensions between xi and yi")
+}
+
+# Compute MMD using RBF Kernel
+
+mmd_result <- kmmd(xi_matrix, yi_matrix, kernel = "rbfdot",
+                 kpar = "automatic")
+mmd_stat <- mmd_result@mmdstats[1]
+mmd_sigma <- mmd_result@kernelf@kpar$sigma
+cat("A24_wed_m3_MMD Statistic:", mmd_result@mmdstats, "\n")
+
+mmd_perm <- replicate(5000, {
+  combined <- rbind(xi_matrix, yi_matrix)  
+  perm_indices <- sample(nrow(combined))
+  perm_x <- combined[perm_indices[1:nrow(xi_matrix)], ]
+  perm_y <- combined[perm_indices[(nrow(xi_matrix)+1):nrow(combined)], ]
+  kmmd(perm_x, perm_y, kernel = "rbfdot",
+        kpar = list(mmd_sigma))@mmdstats[1]
+})
+
+A24_wed_m3_p_value <- mean(mmd_perm >= mmd_stat)
+cat("A24_wed_m3_p-value:", A24_wed_m3_p_value, "\n")
+```
+
+
+#filter weekdays in march 
+```{r}
+wek_m3_data <- bind_rows(
+  A26024_pre %>%  
+    filter(year(StartDate) %in% c("2018","2019"), Month == 3, Wday %in% 2:4) %>%
+    mutate(Year = year(StartDate), 
+           Unique_Week = paste(Year, Week, sep = " "),
+           Period = "Pre"),  # unique week no.
+
+  A26024_post %>%  
+    filter(year(StartDate) %in% c("2023","2024"), Month == 3, Wday %in% 2:4) %>%
+    mutate(Year = year(StartDate), 
+           Unique_Week = paste(Year, Week, sep = " "),
+           Period = "Post")    
+)
+
+wek_m3_data <- wek_m3_data %>%
+  mutate(Period = factor(Period, levels = c("Pre", "Post")))
+
+# **Choose the hour where labels will be placed (e.g., 12 PM)**
+#label_hour <- 15  # Adjust this to any hour you want
+
+# Extract data points at the chosen hour
+#label_data <- wek_m3_data %>%
+  #filter(Hour == label_hour) %>%
+  #mutate(Label = format(StartDate, "%Y-%m-%d"))  # Format StartDate for labeling
+
+# Aggregate hourly mean for each period
+hourly_summary_data <- wek_m3_data %>%
+  group_by(Period, Hour) %>%
+  summarise(
+    traffic_mean = mean(traffic_count, na.rm = TRUE), 
+    traffic_q25 = quantile(traffic_count, 0.25, na.rm = TRUE),
+    traffic_q75 = quantile(traffic_count, 0.75, na.rm = TRUE),
+    .groups = "drop"
+  )
+
+# **Create the plot**
+picture7_A24 <- ggplot() +
+  # IQR shading (group = Period to prevent overlapping)
+  #geom_ribbon(data = hourly_summary_data, 
+              #aes(x = Hour, ymin = traffic_q25, ymax = traffic_q75, 
+                #  fill = as.factor(Period), group = Period), 
+              #alpha = 0.4) +
+
+  # Plot raw data with thin lines for individual days
+  geom_line(data = wek_m3_data, 
+            aes(x = Hour, y = traffic_count, group = StartDate, color = as.factor(Period)), 
+            linewidth = 0.2, alpha = 0.4) +
+
+  # Add trend lines (hourly mean for each period)
+  geom_line(data = hourly_summary_data, 
+            aes(x = Hour, y = traffic_mean, group = Period, color = as.factor(Period)), 
+            linewidth = 0.8) +
+
+  # **Add labels at the chosen hour**
+  #geom_text(data = label_data, 
+          #  aes(x = Hour, y = traffic_count, label = Label, color = as.factor(Period)),   
+          #  position = position_jitter(width = 0.2, height = 100),  # Jitter to avoid overlap  
+           # size = 3, hjust = 0.5) +
+
+  # Labels and themes
+  labs(
+    title = "I205 Traffic Trends of Tue/Wed/Thur in March",
+    x = "Hour", y = "Traffic Count",
+    color = "Period", fill = "Period"
+  ) +
+
+# Adjust x-axis tick frequency (every 3 hours)
+scale_x_continuous(breaks = seq(0, 23, by = 3), labels = seq(0, 23, by = 3))
+  
+   theme_minimal() +
+  theme(
+    aspect.ratio = 1/8,
+    legend.position = "bottom",  
+    axis.text.x = element_text(angle = 45, hjust = 1, size = 8)  
+  )
+   print(picture7_A24)
+```
+
+
+
+
+#mmd for march weekdays
+```{r}
+mmd_m3wek_pre <- wek_m3_data %>%
+  filter(Year %in% c(2018,2019)) %>%  # Select 04/2018 weekdays
+  arrange(Year, Month, Week, Wday, Hour) %>%  # Order by Week, Day, Hour
+  group_by(Month, Week, Wday) %>%  # Group each day separately
+  summarise(traffic_count = list(traffic_count), .groups = "drop")  # Store as list
+xi <- mmd_m3wek_pre$traffic_count
+
+mmd_m3wek_post <- wek_m3_data %>%
+  filter(Year %in% c("2023","2024")) %>%  
+  arrange(Year, Month, Week, Wday, Hour) %>%  # Order by Week, Day, Hour
+  group_by(Month, Week, Wday) %>%  # Group each day separately
+  summarise(traffic_count = list(traffic_count), .groups = "drop")  # Store as list
+yi <- mmd_m3wek_post$traffic_count
+
+#Each xi and yi is a 24-dimensional vector (one full day of hourly traffic).
+#Each weekend contributes three samples (tue/wed/thur).
+
+
+# Convert xi and yi into matrices
+xi_matrix <- do.call(rbind, xi)  # Each row = one day's traffic (24 values)
+yi_matrix <- do.call(rbind, yi)
+
+# Ensure both datasets have the same dimensions
+if (ncol(xi_matrix) != ncol(yi_matrix)) {
+  stop("Mismatch in feature dimensions between xi and yi")
+}
+
+# Compute MMD using RBF Kernel
+
+mmd_result <- kmmd(xi_matrix, yi_matrix, kernel = "rbfdot",
+                 kpar = "automatic")
+mmd_stat <- mmd_result@mmdstats[1]
+mmd_sigma <- mmd_result@kernelf@kpar$sigma
+cat("A24_wek_m3_MMD Statistic:", mmd_result@mmdstats, "\n")
+
+mmd_perm <- replicate(5000, {
+  combined <- rbind(xi_matrix, yi_matrix)  
+  perm_indices <- sample(nrow(combined))
+  perm_x <- combined[perm_indices[1:nrow(xi_matrix)], ]
+  perm_y <- combined[perm_indices[(nrow(xi_matrix)+1):nrow(combined)], ]
+  kmmd(perm_x, perm_y, kernel = "rbfdot",
+        kpar = list(mmd_sigma))@mmdstats[1]
+})
+
+A24_wek_m3_p_value <- mean(mmd_perm >= mmd_stat)
+cat("A24_wek_m3_p_value:", A24_wek_m3_p_value, "\n")
+
+```
+
+#filter d1_m4_5_9_10
+#2023/09/18 wildfire
+# 2023/10/30 wired
+```{r}
+d1_m4_5_9_10_data <- bind_rows(
+  A26024_pre %>%  
+    filter(((year(StartDate) == 2018 & Month %in% c(4,5,9,10) & Wday == 1) |
+            (year(StartDate) == 2019 & Month %in% c(4,5) & Wday == 1))) %>%
+    mutate(Year = year(StartDate), 
+           Unique_Week = paste(Year, Week, sep = " "),
+           Period = "Pre"),  # unique week no.
+
+  A26024_post %>%  
+   filter(((year(StartDate) == 2023 & Month %in% c(4,5,9,10) & Wday == 1) |
+            (year(StartDate) == 2024 & Month %in% c(4,5,10) & Wday == 1))) %>%
+    mutate(Year = year(StartDate),  
+           Unique_Week = paste(Year, Week, sep = " "),
+           Period = "Post")    
+)
+d1_m4_5_9_10_data <- d1_m4_5_9_10_data %>%
+  mutate(Period = factor(Period, levels = c("Pre", "Post")))
+
+# **Choose the hour where labels will be placed (e.g., 12 PM)**
+ #label_hour <- 6 # Adjust this to any hour you want
+# Extract data points at the chosen hour
+# label_data <- d1_m4_5_9_10_data %>%
+ # filter(Hour == label_hour) %>%
+  #mutate(Label = format(StartDate, "%Y-%m-%d"))  # Format StartDate for labeling
+ 
+  
+# Aggregate hourly mean for each month
+hourly_mean_data <- d1_m4_5_9_10_data %>%
+  group_by(Period, Hour) %>%
+  summarise(traffic_mean = mean(traffic_count, na.rm = TRUE), .groups = "drop")
+
+# Plot grouped by day, colored by month, with mean trend line
+picture3_A24 <- ggplot(d1_m4_5_9_10_data, aes(x = Hour, y = traffic_count)) +
+  
+  # Plot raw data with thin lines for individual days
+  geom_line(aes(group = StartDate, color = as.factor(Period)), linewidth = 0.2, alpha = 0.4) +
+  
+  # Add trend lines (hourly mean for each month)
+  geom_line(data = hourly_mean_data, aes(x = Hour, y = traffic_mean, group = Period, color = as.factor(Period)),
+            linewidth = 0.8) +
+# **Add labels at the chosen hour for each day's line**
+  #geom_text(data = label_data, aes(label = Label),   
+            #position = position_jitter(width = 0.2, height = 100),  # Jitter to avoid overlap  
+            #size = 3, hjust = 0.5) +  
+  # Labels and themes
+  labs(title = "I205 Traffic Trends of Monday in Apr/May/Sept/Oct",
+       x = "Hour", y = "Traffic Count",
+       color = "Period") +
+  
+  # Adjust x-axis tick frequency (every 3 hours)
+scale_x_continuous(breaks = seq(0, 23, by = 3), labels = seq(0, 23, by = 3))
+  
+   theme_minimal() +
+  theme(
+    aspect.ratio = 1/8,
+    legend.position = "bottom",  
+    axis.text.x = element_text(angle = 45, hjust = 1, size = 8)  
+  )
+   print(picture3_A24)
+```
+
+
+#d1_m4_5_9_10 MMD
+```{r}
+# Step 2: Split Data into Pre (2018) and Post (2023)
+d1_mmd_m4_5_9_10_pre <- d1_m4_5_9_10_data %>%
+  filter(Year %in% c(2018,2019)) %>%  
+  arrange(Week, Wday, Hour) %>%  # Order by Week, Day, Hour
+  group_by(Week, Wday) %>%  # Group each day separately
+  summarise(traffic_count = list(traffic_count), .groups = "drop")  # Store as list
+xi <- d1_mmd_m4_5_9_10_pre$traffic_count
+
+d1_mmd_m4_5_9_10_post <- d1_m4_5_9_10_data %>%
+  filter(Year %in% c("2023","2024")) %>%  
+  arrange(Week, Wday, Hour) %>%  # Order by Week, Day, Hour
+  group_by(Week, Wday) %>%  # Group each day separately
+  summarise(traffic_count = list(traffic_count), .groups = "drop")  # Store as list
+yi <-d1_mmd_m4_5_9_10_post$traffic_count
+
+#Each xi and yi is a 24-dimensional vector (one full day of hourly traffic).
+#Each weekend contributes two samples (Saturday & Sunday).
+
+# Convert xi and yi into matrices
+xi_matrix <- do.call(rbind, xi)  # Each row = one day's traffic (24 values)
+yi_matrix <- do.call(rbind, yi)
+
+# Ensure both datasets have the same dimensions
+if (ncol(xi_matrix) != ncol(yi_matrix)) {
+  stop("Mismatch in feature dimensions between xi and yi")
+}
+
+
+# Compute MMD using RBF Kernel
+
+mmd_result <- kmmd(xi_matrix, yi_matrix, kernel = "rbfdot",
+                 kpar = "automatic")
+mmd_stat <- mmd_result@mmdstats[1]
+mmd_sigma <- mmd_result@kernelf@kpar$sigma
+cat("A24_d1_m4_5_9_10_MMD Statistic:", mmd_result@mmdstats, "\n")
+
+mmd_perm <- replicate(5000, {
+  combined <- rbind(xi_matrix, yi_matrix)  
+  perm_indices <- sample(nrow(combined))
+  perm_x <- combined[perm_indices[1:nrow(xi_matrix)], ]
+  perm_y <- combined[perm_indices[(nrow(xi_matrix)+1):nrow(combined)], ]
+  kmmd(perm_x, perm_y, kernel = "rbfdot",
+        kpar = list(mmd_sigma))@mmdstats[1]
+})
+
+A24_d1_m4_5_9_10_p_value <- mean(mmd_perm >= mmd_stat)
+cat("A24_d1_m4_5_9_10_p-value:", A24_d1_m4_5_9_10_p_value, "\n")
+```
+
+#filter d4_m4_5_9_10
+
+```{r}
+d4_m4_5_9_10_data <- bind_rows(
+  A26024_pre %>%  
+    filter(((year(StartDate) == 2018 & Month %in% c(4,5,9,10) & Wday == 4) |
+            (year(StartDate) == 2019 & Month %in% c(4,5) & Wday == 4))) %>%
+    mutate(Year = year(StartDate), 
+           Unique_Week = paste(Year, Week, sep = " "),
+           Period = "Pre"),  # unique week no.
+
+  A26024_post %>%  
+   filter(((year(StartDate) == 2023 & Month %in% c(4,5,9,10) & Wday == 4) |
+            (year(StartDate) == 2024 & Month %in% c(4,5,10) & Wday == 4))) %>%
+    mutate(Year = year(StartDate),  
+           Unique_Week = paste(Year, Week, sep = " "),
+           Period = "Post")    
+)
+d4_m4_5_9_10_data <- d4_m4_5_9_10_data %>%
+  mutate(Period = factor(Period, levels = c("Pre", "Post")))
+
+# **Choose the hour where labels will be placed (e.g., 12 PM)**
+ #label_hour <- 6 # Adjust this to any hour you want
+# Extract data points at the chosen hour
+# label_data <- d4_m4_5_9_10_data %>%
+ # filter(Hour == label_hour) %>%
+  #mutate(Label = format(StartDate, "%Y-%m-%d"))  # Format StartDate for labeling
+ 
+  
+# Aggregate hourly mean for each month
+hourly_mean_data <- d4_m4_5_9_10_data %>%
+  group_by(Period, Hour) %>%
+  summarise(traffic_mean = mean(traffic_count, na.rm = TRUE), .groups = "drop")
+
+# Plot grouped by day, colored by month, with mean trend line
+ggplot(d4_m4_5_9_10_data, aes(x = Hour, y = traffic_count)) +
+  
+  # Plot raw data with thin lines for individual days
+  geom_line(aes(group = StartDate, color = as.factor(Period)), linewidth = 0.2, alpha = 0.4) +
+  
+  # Add trend lines (hourly mean for each month)
+  geom_line(data = hourly_mean_data, aes(x = Hour, y = traffic_mean, group = Period, color = as.factor(Period)),
+            linewidth = 0.8) +
+# **Add labels at the chosen hour for each day's line**
+  #geom_text(data = label_data, aes(label = Label),   
+            #position = position_jitter(width = 0.2, height = 100),  # Jitter to avoid overlap  
+            #size = 3, hjust = 0.5) +  
+  # Labels and themes
+  labs(title = "Traffic Trends thursday m4/5/9/10 (by Period)",
+       x = "Hour", y = "Traffic Count",
+       color = "Period") +
+  
+  # Adjust x-axis tick frequency (every 3 hours)
+scale_x_continuous(breaks = seq(0, 23, by = 3), labels = seq(0, 23, by = 3))
+  
+   theme_minimal() +
+  theme(
+    aspect.ratio = 1/8,
+    legend.position = "bottom",  
+    axis.text.x = element_text(angle = 45, hjust = 1, size = 8)  
+  )
+```
+
+#d4_m4_5_9_10 MMD
+```{r}
+# Step 2: Split Data into Pre (2018) and Post (2023)
+d4_mmd_m4_5_9_10_pre <- d4_m4_5_9_10_data %>%
+  filter(Year %in% c(2018,2019)) %>%  
+  arrange(Week, Wday, Hour) %>%  # Order by Week, Day, Hour
+  group_by(Week, Wday) %>%  # Group each day separately
+  summarise(traffic_count = list(traffic_count), .groups = "drop")  # Store as list
+xi <- d4_mmd_m4_5_9_10_pre$traffic_count
+
+d4_mmd_m4_5_9_10_post <- d4_m4_5_9_10_data %>%
+  filter(Year %in% c("2023","2024")) %>%  
+  arrange(Week, Wday, Hour) %>%  # Order by Week, Day, Hour
+  group_by(Week, Wday) %>%  # Group each day separately
+  summarise(traffic_count = list(traffic_count), .groups = "drop")  # Store as list
+yi <-d4_mmd_m4_5_9_10_post$traffic_count
+
+#Each xi and yi is a 24-dimensional vector (one full day of hourly traffic).
+#Each weekend contributes two samples (Saturday & Sunday).
+
+# Convert xi and yi into matrices
+xi_matrix <- do.call(rbind, xi)  # Each row = one day's traffic (24 values)
+yi_matrix <- do.call(rbind, yi)
+
+# Ensure both datasets have the same dimensions
+if (ncol(xi_matrix) != ncol(yi_matrix)) {
+  stop("Mismatch in feature dimensions between xi and yi")
+}
+
+
+# Compute MMD using RBF Kernel
+
+mmd_result <- kmmd(xi_matrix, yi_matrix, kernel = "rbfdot",
+                 kpar = "automatic")
+mmd_stat <- mmd_result@mmdstats[1]
+mmd_sigma <- mmd_result@kernelf@kpar$sigma
+cat("A24_d4_m4_5_9_10_MMD Statistic:", mmd_result@mmdstats, "\n")
+
+mmd_perm <- replicate(5000, {
+  combined <- rbind(xi_matrix, yi_matrix)  
+  perm_indices <- sample(nrow(combined))
+  perm_x <- combined[perm_indices[1:nrow(xi_matrix)], ]
+  perm_y <- combined[perm_indices[(nrow(xi_matrix)+1):nrow(combined)], ]
+  kmmd(perm_x, perm_y, kernel = "rbfdot",
+        kpar = list(mmd_sigma))@mmdstats[1]
+})
+
+A24_d4_m4_5_9_10_p_value <- mean(mmd_perm >= mmd_stat)
+cat("A24_d4_m4_5_9_10_p-value:", A24_d4_m4_5_9_10_p_value, "\n")
+```
+
+
+#filter d5_m4_5_9_10
+```{r}
+d5_m4_5_9_10_data <- bind_rows(
+  A26024_pre %>%  
+    filter(((year(StartDate) == 2018 & Month %in% c(4,5,9,10) & Wday == 5) |
+            (year(StartDate) == 2019 & Month %in% c(4,5) & Wday == 5))) %>%
+    mutate(Year = year(StartDate), 
+           Unique_Week = paste(Year, Week, sep = " "),
+           Period = "Pre"),  # unique week no.
+
+  A26024_post %>%  
+   filter(((year(StartDate) == 2023 & Month %in% c(4,5,9,10) & Wday == 5) |
+            (year(StartDate) == 2024 & Month %in% c(4,5,10) & Wday == 5))) %>%
+    mutate(Year = year(StartDate),  
+           Unique_Week = paste(Year, Week, sep = " "),
+           Period = "Post")    
+)
+d5_m4_5_9_10_data <- d5_m4_5_9_10_data %>%
+  mutate(Period = factor(Period, levels = c("Pre", "Post")))
+
+
+# Aggregate hourly mean for each month
+hourly_mean_data <- d5_m4_5_9_10_data %>%
+  group_by(Period, Hour) %>%
+  summarise(traffic_mean = mean(traffic_count, na.rm = TRUE), .groups = "drop")
+
+# Plot grouped by day, colored by month, with mean trend line
+picture13_A24 <- ggplot(d5_m4_5_9_10_data, aes(x = Hour, y = traffic_count)) +
+  
+  # Plot raw data with thin lines for individual days
+  geom_line(aes(group = StartDate, color = as.factor(Period)), linewidth = 0.2, alpha = 0.4) +
+  
+  # Add trend lines (hourly mean for each month)
+  geom_line(data = hourly_mean_data, aes(x = Hour, y = traffic_mean, group = Period, color = as.factor(Period)),
+            linewidth = 0.8) +
+  
+  # Labels and themes
+  labs(title = "I205 Traffic Trends of Friday in Apr/May/Sept/Oct",
+       x = "Hour", y = "Traffic Count",
+       color = "Period") +
+  
+  # Adjust x-axis tick frequency (every 3 hours)
+scale_x_continuous(breaks = seq(0, 23, by = 3), labels = seq(0, 23, by = 3))
+  
+   theme_minimal() +
+  theme(
+    aspect.ratio = 1/8,
+    legend.position = "bottom",  
+    axis.text.x = element_text(angle = 45, hjust = 1, size = 8)  
+  )
+   print(picture13_A24)
+```
+
+
+#d5_m4_5_9_10 MMD
+```{r}
+# Step 2: Split Data into Pre (2018) and Post (2023)
+d5_mmd_m4_5_9_10_pre <- d5_m4_5_9_10_data %>%
+  filter(Year %in% c(2018,2019)) %>% 
+  arrange(Week, Wday, Hour) %>%  # Order by Week, Day, Hour
+  group_by(Week, Wday) %>%  # Group each day separately
+  summarise(traffic_count = list(traffic_count), .groups = "drop")  # Store as list
+xi <- d5_mmd_m4_5_9_10_pre$traffic_count
+
+d5_mmd_m4_5_9_10_post <- d5_m4_5_9_10_data %>%
+  filter(Year %in% c("2023","2024")) %>% 
+  arrange(Week, Wday, Hour) %>%  # Order by Week, Day, Hour
+  group_by(Week, Wday) %>%  # Group each day separately
+  summarise(traffic_count = list(traffic_count), .groups = "drop")  # Store as list
+yi <-d5_mmd_m4_5_9_10_post$traffic_count
+
+#Each xi and yi is a 24-dimensional vector (one full day of hourly traffic).
+#Each weekend contributes two samples (Saturday & Sunday).
+
+
+# Convert xi and yi into matrices
+xi_matrix <- do.call(rbind, xi)  # Each row = one day's traffic (24 values)
+yi_matrix <- do.call(rbind, yi)
+
+# Ensure both datasets have the same dimensions
+if (ncol(xi_matrix) != ncol(yi_matrix)) {
+  stop("Mismatch in feature dimensions between xi and yi")
+}
+
+
+# Compute MMD using RBF Kernel
+
+mmd_result <- kmmd(xi_matrix, yi_matrix, kernel = "rbfdot",
+                 kpar = "automatic")
+mmd_stat <- mmd_result@mmdstats[1]
+mmd_sigma <- mmd_result@kernelf@kpar$sigma
+cat("A24_d5_m4_5_9_10_MMD Statistic:", mmd_result@mmdstats, "\n")
+
+mmd_perm <- replicate(5000, {
+  combined <- rbind(xi_matrix, yi_matrix)  
+  perm_indices <- sample(nrow(combined))
+  perm_x <- combined[perm_indices[1:nrow(xi_matrix)], ]
+  perm_y <- combined[perm_indices[(nrow(xi_matrix)+1):nrow(combined)], ]
+  kmmd(perm_x, perm_y, kernel = "rbfdot",
+        kpar = list(mmd_sigma))@mmdstats[1]
+})
+
+A24_d5_m4_5_9_10_p_value <- mean(mmd_perm >= mmd_stat)
+cat("A24_d5_m4_5_9_10_p-value:", A24_d5_m4_5_9_10_p_value, "\n")
+```
+
+
+#filter data weedend m4/5/9/10
+```{r}
+wed_m4_5_9_10_data <- bind_rows(
+  A26024_pre %>%  
+    filter(((year(StartDate) == 2018 & Month %in% c(4,5,9,10) & Wday %in% 6:7) |
+            (year(StartDate) == 2019 & Month %in% c(4,5) & Wday %in% 6:7))) %>%
+    mutate(Year = year(StartDate), 
+           Unique_Week = paste(Year, Week, sep = " "),
+           Period = "Pre"),  # unique week no.
+
+  A26024_post %>%  
+   filter(((year(StartDate) == 2023 & Month %in% c(4,5,9,10) & Wday %in% 6:7) |
+            (year(StartDate) == 2024 & Month %in% c(4,5,10) & Wday %in% 6:7))) %>%
+    mutate(Year = year(StartDate),  
+           Unique_Week = paste(Year, Week, sep = " "),
+           Period = "Post")    
+)
+wed_m4_5_9_10_data <- wed_m4_5_9_10_data %>%
+  mutate(Period = factor(Period, levels = c("Pre", "Post")))
+# Aggregate hourly mean for each month
+hourly_mean_data <- wed_m4_5_9_10_data %>%
+  group_by(Period, Hour) %>%
+  summarise(traffic_mean = mean(traffic_count, na.rm = TRUE), .groups = "drop")
+
+# Plot grouped by day, colored by month, with mean trend line
+picture18_A24 <- ggplot(wed_m4_5_9_10_data, aes(x = Hour, y = traffic_count)) +
+  
+  # Plot raw data with thin lines for individual days
+  geom_line(aes(group = StartDate, color = as.factor(Period)), linewidth = 0.2, alpha = 0.4) +
+  
+  # Add trend lines (hourly mean for each month)
+  geom_line(data = hourly_mean_data, aes(x = Hour, y = traffic_mean, group = Period, color = as.factor(Period)),
+            linewidth = 0.8) +
+  
+  # Labels and themes
+  labs(title = "I205 Traffic Trends of Weekend in Apr/May/Sept/Oct",
+       x = "Hour", y = "Traffic Count",
+       color = "Period") +
+  
+  # Adjust x-axis tick frequency (every 3 hours)
+scale_x_continuous(breaks = seq(0, 23, by = 3), labels = seq(0, 23, by = 3))
+  
+   theme_minimal() +
+  theme(
+    aspect.ratio = 1/8,
+    legend.position = "bottom",  
+    axis.text.x = element_text(angle = 45, hjust = 1, size = 8)  
+  )
+   print(picture18_A24)
+```
+
+#test mmd for m4/5/9/10 weekend
+```{r}
+# Step 2: Split Data into Pre  and Post
+mmd_m4_5wed_pre <- wed_m4_5_9_10_data %>%
+  filter(Year %in% c(2018,2019)) %>% 
+  arrange(Week, Wday, Hour) %>%  # Order by Week, Day, Hour
+  group_by(Week, Wday) %>%  # Group each day separately
+  summarise(traffic_count = list(traffic_count), .groups = "drop")  # Store as list
+xi <- mmd_m4_5wed_pre$traffic_count
+
+mmd_m4_5wed_post_23 <- wed_m4_5_9_10_data %>%
+  filter(Year %in% c("2023","2024")) %>%  
+  arrange(Week, Wday, Hour) %>%  # Order by Week, Day, Hour
+  group_by(Week, Wday) %>%  # Group each day separately
+  summarise(traffic_count = list(traffic_count), .groups = "drop")  # Store as list
+yi <- mmd_m4_5wed_post_23$traffic_count
+
+#Each xi and yi is a 24-dimensional vector (one full day of hourly traffic).
+#Each weekend contributes two samples (Saturday & Sunday).
+
+
+# Convert xi and yi into matrices
+xi_matrix <- do.call(rbind, xi)  # Each row = one day's traffic (24 values)
+yi_matrix <- do.call(rbind, yi)
+
+# Ensure both datasets have the same dimensions
+if (ncol(xi_matrix) != ncol(yi_matrix)) {
+  stop("Mismatch in feature dimensions between xi and yi")
+}
+
+
+# Compute MMD using RBF Kernel
+
+mmd_result <- kmmd(xi_matrix, yi_matrix, kernel = "rbfdot",
+                 kpar = "automatic")
+mmd_stat <- mmd_result@mmdstats[1]
+mmd_sigma <- mmd_result@kernelf@kpar$sigma
+cat("A24_wed_m4_5_9_10MMD Statistic:", mmd_result@mmdstats, "\n")
+
+mmd_perm <- replicate(5000, {
+  combined <- rbind(xi_matrix, yi_matrix)  
+  perm_indices <- sample(nrow(combined))
+  perm_x <- combined[perm_indices[1:nrow(xi_matrix)], ]
+  perm_y <- combined[perm_indices[(nrow(xi_matrix)+1):nrow(combined)], ]
+  kmmd(perm_x, perm_y, kernel = "rbfdot",
+        kpar = list(mmd_sigma))@mmdstats[1]
+})
+
+A24_wed_m4_5_9_10_p_value <- mean(mmd_perm >= mmd_stat)
+cat("A24_wed_m4_5_9_10_p-value:", A24_wed_m4_5_9_10_p_value, "\n")
+```
+
+
+# filter data weekdays in m4.5.9.10
+
+```{r}
+wek_m4_5_9_10_data <- bind_rows(
+  A26024_pre %>%  
+    filter(((year(StartDate) == 2018 & Month %in% c(4,5,9,10) & Wday %in% 2:4) |
+            (year(StartDate) == 2019 & Month %in% c(4,5) & Wday %in% 2:4))) %>%
+    mutate(Year = year(StartDate), 
+           Unique_Week = paste(Year, Week, sep = " "),
+           Period = "Pre"),  # unique week no.
+
+  A26024_post %>%  
+   filter(((year(StartDate) == 2023 & Month %in% c(4,5,9,10) & Wday %in% 2:4) |
+            (year(StartDate) == 2024 & Month %in% c(4,5,10) & Wday %in% 2:4))) %>%
+    mutate(Year = year(StartDate),  
+           Unique_Week = paste(Year, Week, sep = " "),
+           Period = "Post")  
+)
+wek_m4_5_9_10_data <- wek_m4_5_9_10_data %>%
+  mutate(Period = factor(Period, levels = c("Pre", "Post")))
+# Aggregate hourly mean for each month
+hourly_summary_data <- wek_m4_5_9_10_data %>%
+  group_by(Period, Hour) %>%
+  summarise(traffic_mean = mean(traffic_count, na.rm = TRUE), 
+            traffic_q25 = quantile(traffic_count, 0.25, na.rm = TRUE),
+            traffic_q75 = quantile(traffic_count, 0.75, na.rm = TRUE),
+            .groups = "drop")
+
+picture8_A24 <- ggplot() +  
+  # IQR shading (group = Year to prevent overlapping)
+  #geom_ribbon(data = hourly_summary_data, 
+             # aes(x = Hour, ymin = traffic_q25, ymax = traffic_q75, 
+               #   fill = as.factor(Period), group = Period), 
+              #alpha = 0.6) +
+
+  # Plot raw data with thin lines for individual days
+  geom_line(data = wek_m4_5_9_10_data, 
+            aes(x = Hour, y = traffic_count, group = StartDate, color = as.factor(Period)), 
+            linewidth = 0.2, alpha = 0.4) +
+
+  # Add trend lines (hourly mean for each year)
+  geom_line(data = hourly_summary_data, 
+            aes(x = Hour, y = traffic_mean, group = Period, color = as.factor(Period)), 
+            linewidth = 0.8) +
+
+  # Labels and themes
+  labs(title = "I205 Traffic Trends of Tue/Wed/Thur in Apr/May/Sept/Oct",
+       x = "Hour", y = "Traffic Count",
+       color = "Period") +
+  
+  # Adjust x-axis tick frequency (every 3 hours)
+scale_x_continuous(breaks = seq(0, 23, by = 3), labels = seq(0, 23, by = 3))
+  
+   theme_minimal() +
+  theme(
+    aspect.ratio = 1/8,
+    legend.position = "bottom",  
+    axis.text.x = element_text(angle = 45, hjust = 1, size = 8)  
+  )
+   print(picture8_A24)
+```
+
+
+# April  treat tuesday/wednesday/thursday as identical day
+
+```{r}
+mmd_m4_5_9_10wek_pre <- wek_m4_5_9_10_data %>%
+  filter(Year %in% c(2018,2019)) %>%  # Select 04/2018 weekdays
+  arrange(Year, Month, Week, Wday, Hour) %>%  # Order by Week, Day, Hour
+  group_by(Month, Week, Wday) %>%  # Group each day separately
+  summarise(traffic_count = list(traffic_count), .groups = "drop")  # Store as list
+xi <- mmd_m4_5_9_10wek_pre$traffic_count
+
+mmd_m4_5_9_10wek_post <- wek_m4_5_9_10_data %>%
+  filter(Year %in% c("2023","2024")) %>%  # Select 04/2023 weekdays
+  arrange(Year, Month, Week, Wday, Hour) %>%  # Order by Week, Day, Hour
+  group_by(Month, Week, Wday) %>%  # Group each day separately
+  summarise(traffic_count = list(traffic_count), .groups = "drop")  # Store as list
+yi <- mmd_m4_5_9_10wek_post$traffic_count
+
+#Each xi and yi is a 24-dimensional vector (one full day of hourly traffic).
+#Each weekend contributes three samples (tue/wed/thur).
+
+# Convert xi and yi into matrices
+xi_matrix <- do.call(rbind, xi)  # Each row = one day's traffic (24 values)
+yi_matrix <- do.call(rbind, yi)
+
+# Ensure both datasets have the same dimensions
+if (ncol(xi_matrix) != ncol(yi_matrix)) {
+  stop("Mismatch in feature dimensions between xi and yi")
+}
+
+
+# Compute MMD using RBF Kernel
+
+mmd_result <- kmmd(xi_matrix, yi_matrix, kernel = "rbfdot",
+                 kpar = "automatic")
+mmd_stat <- mmd_result@mmdstats[1]
+mmd_sigma <- mmd_result@kernelf@kpar$sigma
+cat("A24_wek_m4_5_9_10_MMD Statistic:", mmd_result@mmdstats, "\n")
+
+mmd_perm <- replicate(5000, {
+  combined <- rbind(xi_matrix, yi_matrix)  
+  perm_indices <- sample(nrow(combined))
+  perm_x <- combined[perm_indices[1:nrow(xi_matrix)], ]
+  perm_y <- combined[perm_indices[(nrow(xi_matrix)+1):nrow(combined)], ]
+  kmmd(perm_x, perm_y, kernel = "rbfdot",
+        kpar = list(mmd_sigma))@mmdstats[1]
+})
+
+A24_wek_m4_5_9_10_p_value <- mean(mmd_perm >= mmd_stat)
+cat("A24_wek_m4_5_9_10_p-value:", A24_wek_m4_5_9_10_p_value, "\n")
+```
+
+
+#filter d1_m6_7_8
+```{r}
+d1_m6_7_8_data <- bind_rows(
+   A26024_pre %>%  
+    filter(((year(StartDate) == 2018 & Month %in% c(6,7,8) & Wday == 1) |
+            (year(StartDate) == 2019 & Month == 6 & Wday == 1))) %>%
+    mutate(Year = year(StartDate), 
+           Unique_Week = paste(Year, Week, sep = " "),
+           Period = "Pre"),  # unique week no.
+
+  A26024_post %>%  
+   filter(((year(StartDate) == 2023 & Month %in% c(6,7,8) & Wday == 1) |
+            (year(StartDate) == 2024 & Month == 6 & Wday == 1))) %>%
+    mutate(Year = year(StartDate),  
+           Unique_Week = paste(Year, Week, sep = " "),
+           Period = "Post")  
+)
+d1_m6_7_8_data <- d1_m6_7_8_data %>%
+  mutate(Period = factor(Period, levels = c("Pre", "Post")))
+
+
+# Aggregate hourly mean for each month
+hourly_mean_data <- d1_m6_7_8_data %>%
+  group_by(Period, Hour) %>%
+  summarise(traffic_mean = mean(traffic_count, na.rm = TRUE), .groups = "drop")
+
+# Plot grouped by day, colored by month, with mean trend line
+picture4_A24 <- ggplot(d1_m6_7_8_data, aes(x = Hour, y = traffic_count)) +
+  
+  # Plot raw data with thin lines for individual days
+  geom_line(aes(group = StartDate, color = as.factor(Period)), linewidth = 0.2, alpha = 0.4) +
+  
+  # Add trend lines (hourly mean for each month)
+  geom_line(data = hourly_mean_data, aes(x = Hour, y = traffic_mean, group = Period, color = as.factor(Period)),
+            linewidth = 0.8) +
+  
+  # Labels and themes
+  labs(title = "I205 Traffic Trends of Monday in Jun/Jul/Aug",
+       x = "Hour", y = "Traffic Count",
+       color = "Period") +
+  
+  # Adjust x-axis tick frequency (every 3 hours)
+scale_x_continuous(breaks = seq(0, 23, by = 3), labels = seq(0, 23, by = 3))
+  
+   theme_minimal() +
+  theme(
+    aspect.ratio = 1/8,
+    legend.position = "bottom",  
+    axis.text.x = element_text(angle = 45, hjust = 1, size = 8)  
+  )
+   print(picture4_A24)
+```
+
+#d1_m6_7_8 MMD
+```{r}
+# Step 2: Split Data into Pre (2018) and Post (2023)
+d1_mmd_m6_7_8_pre <- d1_m6_7_8_data %>%
+  filter(Year %in% c("2018","2019")) %>%  
+  arrange(Week, Wday, Hour) %>%  # Order by Week, Day, Hour
+  group_by(Week, Wday) %>%  # Group each day separately
+  summarise(traffic_count = list(traffic_count), .groups = "drop")  # Store as list
+xi <- d1_mmd_m6_7_8_pre$traffic_count
+
+d1_mmd_m6_7_8_post <- d1_m6_7_8_data %>%
+  filter(Year %in% c("2023", "2024")) %>%  
+  arrange(Week, Wday, Hour) %>%  # Order by Week, Day, Hour
+  group_by(Week, Wday) %>%  # Group each day separately
+  summarise(traffic_count = list(traffic_count), .groups = "drop")  # Store as list
+yi <-d1_mmd_m6_7_8_post$traffic_count
+
+#Each xi and yi is a 24-dimensional vector (one full day of hourly traffic).
+#Each weekend contributes two samples (Saturday & Sunday).
+
+
+# Convert xi and yi into matrices
+xi_matrix <- do.call(rbind, xi)  # Each row = one day's traffic (24 values)
+yi_matrix <- do.call(rbind, yi)
+
+# Ensure both datasets have the same dimensions
+if (ncol(xi_matrix) != ncol(yi_matrix)) {
+  stop("Mismatch in feature dimensions between xi and yi")
+}
+
+
+# Compute MMD using RBF Kernel
+
+mmd_result <- kmmd(xi_matrix, yi_matrix, kernel = "rbfdot",
+                 kpar = "automatic")
+mmd_stat <- mmd_result@mmdstats[1]
+mmd_sigma <- mmd_result@kernelf@kpar$sigma
+cat("A24_d1_m6_7_8_MMD Statistic:", mmd_result@mmdstats, "\n")
+
+mmd_perm <- replicate(5000, {
+  combined <- rbind(xi_matrix, yi_matrix)  
+  perm_indices <- sample(nrow(combined))
+  perm_x <- combined[perm_indices[1:nrow(xi_matrix)], ]
+  perm_y <- combined[perm_indices[(nrow(xi_matrix)+1):nrow(combined)], ]
+  kmmd(perm_x, perm_y, kernel = "rbfdot",
+        kpar = list(mmd_sigma))@mmdstats[1]
+})
+
+A24_d1_m6_7_8_p_value <- mean(mmd_perm >= mmd_stat)
+cat("A24_d1_m6_7_8_p-value:", A24_d1_m6_7_8_p_value, "\n")
+```
+
+
+#filter d4_m6_7_8
+```{r}
+d4_m6_7_8_data <- bind_rows(
+   A26024_pre %>%  
+    filter(((year(StartDate) == 2018 & Month %in% c(6,7,8) & Wday == 4) |
+            (year(StartDate) == 2019 & Month == 6 & Wday == 4))) %>%
+    mutate(Year = year(StartDate), 
+           Unique_Week = paste(Year, Week, sep = " "),
+           Period = "Pre"),  # unique week no.
+
+  A26024_post %>%  
+   filter(((year(StartDate) == 2023 & Month %in% c(6,7,8) & Wday == 4) |
+            (year(StartDate) == 2024 & Month == 6 & Wday == 4))) %>%
+    mutate(Year = year(StartDate),  
+           Unique_Week = paste(Year, Week, sep = " "),
+           Period = "Post")  
+)
+d4_m6_7_8_data <- d4_m6_7_8_data %>%
+  mutate(Period = factor(Period, levels = c("Pre", "Post")))
+
+
+# Aggregate hourly mean for each month
+hourly_mean_data <- d4_m6_7_8_data %>%
+  group_by(Period, Hour) %>%
+  summarise(traffic_mean = mean(traffic_count, na.rm = TRUE), .groups = "drop")
+
+# Plot grouped by day, colored by month, with mean trend line
+ggplot(d4_m6_7_8_data, aes(x = Hour, y = traffic_count)) +
+  
+  # Plot raw data with thin lines for individual days
+  geom_line(aes(group = StartDate, color = as.factor(Period)), linewidth = 0.2, alpha = 0.4) +
+  
+  # Add trend lines (hourly mean for each month)
+  geom_line(data = hourly_mean_data, aes(x = Hour, y = traffic_mean, group = Period, color = as.factor(Period)),
+            linewidth = 0.8) +
+  
+  # Labels and themes
+  labs(title = "Traffic Trends Monday m6_7_8 (by Period)",
+       x = "Hour", y = "Traffic Count",
+       color = "Period") +
+  
+  # Adjust x-axis tick frequency (every 3 hours)
+scale_x_continuous(breaks = seq(0, 23, by = 3), labels = seq(0, 23, by = 3))
+  
+   theme_minimal() +
+  theme(
+    aspect.ratio = 1/8,
+    legend.position = "bottom",  
+    axis.text.x = element_text(angle = 45, hjust = 1, size = 8)  
+  )
+```
+
+#d4_m6_7_8 MMD
+```{r}
+# Step 2: Split Data into Pre  and Post
+d4_mmd_m6_7_8_pre <- d4_m6_7_8_data %>%
+  filter(Year %in% c("2018","2019")) %>%  
+  arrange(Week, Wday, Hour) %>%  # Order by Week, Day, Hour
+  group_by(Week, Wday) %>%  # Group each day separately
+  summarise(traffic_count = list(traffic_count), .groups = "drop")  # Store as list
+xi <- d4_mmd_m6_7_8_pre$traffic_count
+
+d4_mmd_m6_7_8_post <- d4_m6_7_8_data %>%
+  filter(Year %in% c("2023", "2024")) %>%  
+  arrange(Week, Wday, Hour) %>%  # Order by Week, Day, Hour
+  group_by(Week, Wday) %>%  # Group each day separately
+  summarise(traffic_count = list(traffic_count), .groups = "drop")  # Store as list
+yi <-d4_mmd_m6_7_8_post$traffic_count
+
+#Each xi and yi is a 24-dimensional vector (one full day of hourly traffic).
+#Each weekend contributes two samples (Saturday & Sunday).
+
+
+# Convert xi and yi into matrices
+xi_matrix <- do.call(rbind, xi)  # Each row = one day's traffic (24 values)
+yi_matrix <- do.call(rbind, yi)
+
+# Ensure both datasets have the same dimensions
+if (ncol(xi_matrix) != ncol(yi_matrix)) {
+  stop("Mismatch in feature dimensions between xi and yi")
+}
+
+
+# Compute MMD using RBF Kernel
+
+mmd_result <- kmmd(xi_matrix, yi_matrix, kernel = "rbfdot",
+                 kpar = "automatic")
+mmd_stat <- mmd_result@mmdstats[1]
+mmd_sigma <- mmd_result@kernelf@kpar$sigma
+cat("A24_d4_m6_7_8_MMD Statistic:", mmd_result@mmdstats, "\n")
+
+mmd_perm <- replicate(5000, {
+  combined <- rbind(xi_matrix, yi_matrix)  
+  perm_indices <- sample(nrow(combined))
+  perm_x <- combined[perm_indices[1:nrow(xi_matrix)], ]
+  perm_y <- combined[perm_indices[(nrow(xi_matrix)+1):nrow(combined)], ]
+  kmmd(perm_x, perm_y, kernel = "rbfdot",
+        kpar = list(mmd_sigma))@mmdstats[1]
+})
+
+A24_d4_m6_7_8_p_value <- mean(mmd_perm >= mmd_stat)
+cat("A24_d4_m6_7_8_p-value:", A24_d4_m6_7_8_p_value, "\n")
+```
+
+
+#filter d5_m6_7_8
+# fire season 2023/06/09
+```{r}
+d5_m6_7_8_data <- bind_rows(
+  A26024_pre %>%  
+    filter(((year(StartDate) == 2018 & Month %in% c(6,7,8) & Wday == 5) |
+            (year(StartDate) == 2019 & Month == 6 & Wday == 5))) %>%
+    mutate(Year = year(StartDate), 
+           Unique_Week = paste(Year, Week, sep = " "),
+           Period = "Pre"),  # unique week no.
+
+  A26024_post %>%  
+   filter(((year(StartDate) == 2023 & Month %in% c(6,7,8) & Wday == 5) |
+           (year(StartDate) == 2024 & Month == 6 & Wday == 5)) & 
+           !StartDate %in% as.Date("2023-06-09")  # Exclude June 9, 2023
+   ) %>%
+   mutate(Year = year(StartDate),  
+          Unique_Week = paste(Year, Week, sep = " "),
+          Period = "Post")
+)
+d5_m6_7_8_data <- d5_m6_7_8_data %>%
+  mutate(Period = factor(Period, levels = c("Pre", "Post")))
+
+# **Choose the hour where labels will be placed (e.g., 12 PM)**
+ #label_hour <- 9  # Adjust this to any hour you want
+# Extract data points at the chosen hour
+ #label_data <- d5_m6_7_8_data %>%
+  #filter(Hour == label_hour) %>%
+  #mutate(Label = format(StartDate, "%Y-%m-%d"))  # Format StartDate for labeling
+ 
+
+# Aggregate hourly mean for each month
+hourly_mean_data <- d5_m6_7_8_data %>%
+  group_by(Period, Hour) %>%
+  summarise(traffic_mean = mean(traffic_count, na.rm = TRUE), .groups = "drop")
+
+# Plot grouped by day, colored by month, with mean trend line
+picture14_A24 <- ggplot(d5_m6_7_8_data, aes(x = Hour, y = traffic_count)) +
+  
+  # Plot raw data with thin lines for individual days
+  geom_line(aes(group = StartDate, color = as.factor(Period)), linewidth = 0.2, alpha = 0.4) +
+  
+  # Add trend lines (hourly mean for each month)
+  geom_line(data = hourly_mean_data, aes(x = Hour, y = traffic_mean, group = Period, color = as.factor(Period)),
+            linewidth = 0.8) +
+ # **Add labels at the chosen hour for each day's line**
+  #geom_text(data = label_data, aes(label = Label),   
+         #   position = position_jitter(width = 0.2, height = 100),  # Jitter to avoid overlap  
+          #  size = 3, hjust = 0.5) +   
+  # Labels and themes
+  labs(title = "I205 Traffic Trends of Friday in Jun/Jul/Aug",
+       x = "Hour", y = "Traffic Count",
+       color = "Period") +
+  
+  # Adjust x-axis tick frequency (every 3 hours)
+scale_x_continuous(breaks = seq(0, 23, by = 3), labels = seq(0, 23, by = 3))
+  
+   theme_minimal() +
+  theme(
+    aspect.ratio = 1/8,
+    legend.position = "bottom",  
+    axis.text.x = element_text(angle = 45, hjust = 1, size = 8)  
+  )
+   print(picture14_A24)
+```
+
+
+#d5_m6_7_8 MMD
+```{r}
+# Step 2: Split Data into Pre (2019) and Post (2023)
+d5_mmd_m6_7_8_pre <- d5_m4_5_9_10_data %>%
+  filter(Year %in% c("2018","2019")) %>%  # Select March 2019 weekends
+  arrange(Week, Wday, Hour) %>%  # Order by Week, Day, Hour
+  group_by(Week, Wday) %>%  # Group each day separately
+  summarise(traffic_count = list(traffic_count), .groups = "drop")  # Store as list
+xi <- d5_mmd_m6_7_8_pre$traffic_count
+
+d5_mmd_m6_7_8_post <- d5_m6_7_8_data %>%
+  filter(Year %in% c("2023","2024")) %>%  
+  arrange(Week, Wday, Hour) %>%  # Order by Week, Day, Hour
+  group_by(Week, Wday) %>%  # Group each day separately
+  summarise(traffic_count = list(traffic_count), .groups = "drop")  # Store as list
+yi <-d5_mmd_m6_7_8_post$traffic_count
+
+#Each xi and yi is a 24-dimensional vector (one full day of hourly traffic).
+#Each weekend contributes two samples (Saturday & Sunday).
+
+# Convert xi and yi into matrices
+xi_matrix <- do.call(rbind, xi)  # Each row = one day's traffic (24 values)
+yi_matrix <- do.call(rbind, yi)
+
+# Ensure both datasets have the same dimensions
+if (ncol(xi_matrix) != ncol(yi_matrix)) {
+  stop("Mismatch in feature dimensions between xi and yi")
+}
+
+
+# Compute MMD using RBF Kernel
+
+mmd_result <- kmmd(xi_matrix, yi_matrix, kernel = "rbfdot",
+                 kpar = "automatic")
+mmd_stat <- mmd_result@mmdstats[1]
+mmd_sigma <- mmd_result@kernelf@kpar$sigma
+cat("A24_d5_m6_7_8_MMD Statistic:", mmd_result@mmdstats, "\n")
+
+mmd_perm <- replicate(5000, {
+  combined <- rbind(xi_matrix, yi_matrix)  
+  perm_indices <- sample(nrow(combined))
+  perm_x <- combined[perm_indices[1:nrow(xi_matrix)], ]
+  perm_y <- combined[perm_indices[(nrow(xi_matrix)+1):nrow(combined)], ]
+  kmmd(perm_x, perm_y, kernel = "rbfdot",
+        kpar = list(mmd_sigma))@mmdstats[1]
+})
+
+A24_d5_m6_7_8_p_value <- mean(mmd_perm >= mmd_stat)
+cat("A24_d5_m6_7_8_p-value:", A24_d5_m6_7_8_p_value, "\n")
+```
+
+
+# filter data weekend in m6_7_8
+
+```{r}
+wed_m6_7_8_data <- bind_rows(
+  A26024_pre %>%  
+    filter(((year(StartDate) == 2018 & Month %in% c(6,7,8) & Wday %in% 6:7) |
+            (year(StartDate) == 2019 & Month == 6 & Wday %in% 6:7))) %>%
+    mutate(Year = year(StartDate), 
+           Unique_Week = paste(Year, Week, sep = " "),
+           Period = "Pre"),  # unique week no.
+
+  A26024_post %>%  
+   filter(((year(StartDate) == 2023 & Month %in% c(6,7,8) & Wday%in% 6:7) |
+           (year(StartDate) == 2024 & Month == 6 & Wday %in% 6:7)) & 
+           !StartDate %in% as.Date("2023-06-09")  # Exclude June 9, 2023
+   ) %>%
+   mutate(Year = year(StartDate),  
+          Unique_Week = paste(Year, Week, sep = " "),
+          Period = "Post")
+)
+wed_m6_7_8_data <- wed_m6_7_8_data %>%
+  mutate(Period = factor(Period, levels = c("Pre", "Post")))
+# Aggregate hourly mean for each month
+hourly_summary_data <- wed_m6_7_8_data %>%
+  group_by(Period, Hour) %>%
+  summarise(traffic_mean = mean(traffic_count, na.rm = TRUE), 
+            traffic_q25 = quantile(traffic_count, 0.25, na.rm = TRUE),
+            traffic_q75 = quantile(traffic_count, 0.75, na.rm = TRUE),
+            .groups = "drop")
+
+picture19_A24 <- ggplot() +  
+  # IQR shading (group = Year to prevent overlapping)
+  #geom_ribbon(data = hourly_summary_data, 
+             # aes(x = Hour, ymin = traffic_q25, ymax = traffic_q75, 
+               #   fill = as.factor(Period), group = Period), 
+              #alpha = 0.6) +
+
+  # Plot raw data with thin lines for individual days
+  geom_line(data = wed_m6_7_8_data, 
+            aes(x = Hour, y = traffic_count, group = StartDate, color = as.factor(Period)), 
+            linewidth = 0.2, alpha = 0.4) +
+
+  # Add trend lines (hourly mean for each year)
+  geom_line(data = hourly_summary_data, 
+            aes(x = Hour, y = traffic_mean, group = Period, color = as.factor(Period)), 
+            linewidth = 0.8) +
+  
+  # Labels and themes
+  labs(title = "I205 Traffic Trends of Weekend in Jun/Jul/Aug",
+       x = "Hour", y = "Traffic Count",
+       color = "Period") +
+  
+  # Adjust x-axis tick frequency (every 3 hours)
+scale_x_continuous(breaks = seq(0, 23, by = 3), labels = seq(0, 23, by = 3))
+  
+   theme_minimal() +
+  theme(
+    aspect.ratio = 1/8,
+    legend.position = "bottom",  
+    axis.text.x = element_text(angle = 45, hjust = 1, size = 8)  
+  )
+   print(picture19_A24)
+```
+
+#wed m6_7_8 MMD
+```{r}
+mmd_m6_7_8wed_pre <- wed_m6_7_8_data %>%
+  filter(Year == 2019) %>%  # Select 04/2018 weekdays
+  arrange(Year, Month, Week, Wday, Hour) %>%  # Order by Week, Day, Hour
+  group_by(Month, Week, Wday) %>%  # Group each day separately
+  summarise(traffic_count = list(traffic_count), .groups = "drop")  # Store as list
+xi <- mmd_m6_7_8wed_pre$traffic_count
+
+mmd_m6_7_8wed_post <- wed_m6_7_8_data %>%
+  filter(Year == 2023) %>%  # Select 04/2023 weekdays
+  arrange(Year, Month, Week, Wday, Hour) %>%  # Order by Week, Day, Hour
+  group_by(Month, Week, Wday) %>%  # Group each day separately
+  summarise(traffic_count = list(traffic_count), .groups = "drop")  # Store as list
+yi <- mmd_m6_7_8wed_post$traffic_count
+
+#Each xi and yi is a 24-dimensional vector (one full day of hourly traffic).
+#Each weekend contributes three samples (tue/wed/thur).
+
+# Convert xi and yi into matrices
+xi_matrix <- do.call(rbind, xi)  # Each row = one day's traffic (24 values)
+yi_matrix <- do.call(rbind, yi)
+
+# Ensure both datasets have the same dimensions
+if (ncol(xi_matrix) != ncol(yi_matrix)) {
+  stop("Mismatch in feature dimensions between xi and yi")
+}
+
+
+# Compute MMD using RBF Kernel
+
+mmd_result <- kmmd(xi_matrix, yi_matrix, kernel = "rbfdot",
+                 kpar = "automatic")
+mmd_stat <- mmd_result@mmdstats[1]
+mmd_sigma <- mmd_result@kernelf@kpar$sigma
+cat("A24_wed_m6_7_8_MMD Statistic:",mmd_result@mmdstats, "\n")
+
+mmd_perm <- replicate(5000, {
+  combined <- rbind(xi_matrix, yi_matrix)  
+  perm_indices <- sample(nrow(combined))
+  perm_x <- combined[perm_indices[1:nrow(xi_matrix)], ]
+  perm_y <- combined[perm_indices[(nrow(xi_matrix)+1):nrow(combined)], ]
+  kmmd(perm_x, perm_y, kernel = "rbfdot",
+        kpar = list(mmd_sigma))@mmdstats[1]
+})
+
+A24_wed_m6_7_8_p_value <- mean(mmd_perm >= mmd_stat)
+cat("A24_wed_m6_7_8_p-value:", A24_wed_m6_7_8_p_value, "\n")
+```
+
+# filter data weekdays in m6_7_8
+
+```{r}
+wek_m6_7_8_data <- bind_rows(
+  A26024_pre %>%  
+    filter(((year(StartDate) == 2018 & Month %in% c(6,7,8) & Wday %in% 2:4) |
+            (year(StartDate) == 2019 & Month == 6 & Wday %in% 2:4))) %>%
+    mutate(Year = year(StartDate), 
+           Unique_Week = paste(Year, Week, sep = " "),
+           Period = "Pre"),  # unique week no.
+
+  A26024_post %>%  
+   filter(((year(StartDate) == 2023 & Month %in% c(6,7,8) & Wday %in% 2:4) |
+           (year(StartDate) == 2024 & Month == 6 & Wday %in% 2:4))) %>%
+   mutate(Year = year(StartDate),  
+          Unique_Week = paste(Year, Week, sep = " "),
+          Period = "Post")
+)
+
+wek_m6_7_8_data <- wek_m6_7_8_data %>%
+  mutate(Period = factor(Period, levels = c("Pre", "Post")))
+
+# **Choose the hour where labels will be placed (e.g., 4 AM)**
+#label_hour <- 15 
+
+# Extract data points at the chosen hour
+#label_data <- wek_m6_7_8_data %>%
+  #filter(Hour == label_hour) %>%
+  #mutate(Label = format(StartDate, "%Y-%m-%d"))  # Format StartDate for labeling
+
+# Aggregate hourly mean for each period
+hourly_summary_data <- wek_m6_7_8_data %>%
+  group_by(Period, Hour) %>%
+  summarise(
+    traffic_mean = mean(traffic_count, na.rm = TRUE), 
+    traffic_q25 = quantile(traffic_count, 0.25, na.rm = TRUE),
+    traffic_q75 = quantile(traffic_count, 0.75, na.rm = TRUE),
+    .groups = "drop"
+  )
+
+# **Create the plot**
+picture9_A24 <- ggplot() +
+  # IQR shading (group = Period to prevent overlapping)
+  #geom_ribbon(data = hourly_summary_data, 
+             # aes(x = Hour, ymin = traffic_q25, ymax = traffic_q75, 
+               #   fill = as.factor(Period), group = Period), 
+              #alpha = 0.4) +
+
+  # Plot raw data with thin lines for individual days
+  geom_line(data = wek_m6_7_8_data, 
+            aes(x = Hour, y = traffic_count, group = StartDate, color = as.factor(Period)), 
+            linewidth = 0.2, alpha = 0.4) +
+
+  # Add trend lines (hourly mean for each period)
+  geom_line(data = hourly_summary_data, 
+            aes(x = Hour, y = traffic_mean, group = Period, color = as.factor(Period)), 
+            linewidth = 0.8) +
+
+  # **Add labels at the chosen hour**
+ # geom_text(data = label_data, 
+          #  aes(x = Hour, y = traffic_count, label = Label, color = as.factor(Period)),   
+           # position = position_jitter(width = 0.2, height = 100),  # Jitter to avoid overlap  
+           # size = 3, hjust = 0.5) +
+
+  # Labels and themes
+  labs(
+    title = "I205 Traffic Trends of Tue/Wed/Thur in Jun/Jul/Aug",
+    x = "Hour", y = "Traffic Count",
+    color = "Period", fill = "Period"
+  ) +
+
+# Adjust x-axis tick frequency (every 3 hours)
+scale_x_continuous(breaks = seq(0, 23, by = 3), labels = seq(0, 23, by = 3))
+  
+   theme_minimal() +
+  theme(
+    aspect.ratio = 1/8,
+    legend.position = "bottom",  
+    axis.text.x = element_text(angle = 45, hjust = 1, size = 8)  
+  )
+   print(picture9_A24)
+```
+
+#wek m6_7_8 MMD
+```{r}
+mmd_m6_7_8wek_pre <- wek_m6_7_8_data %>%
+  filter(Year %in% c("2018","2019")) %>%  # Select 04/2018 weekdays
+  arrange(Year, Month, Week, Wday, Hour) %>%  # Order by Week, Day, Hour
+  group_by(Month, Week, Wday) %>%  # Group each day separately
+  summarise(traffic_count = list(traffic_count), .groups = "drop")  # Store as list
+xi <- mmd_m6_7_8wek_pre$traffic_count
+
+mmd_m6_7_8wek_post <- wek_m6_7_8_data %>%
+  filter(Year %in% c("2023","2024")) %>%  # Select 04/2023 weekdays
+  arrange(Year, Month, Week, Wday, Hour) %>%  # Order by Week, Day, Hour
+  group_by(Month, Week, Wday) %>%  # Group each day separately
+  summarise(traffic_count = list(traffic_count), .groups = "drop")  # Store as list
+yi <- mmd_m6_7_8wek_post$traffic_count
+
+#Each xi and yi is a 24-dimensional vector (one full day of hourly traffic).
+#Each weekend contributes three samples (tue/wed/thur).
+
+# Convert xi and yi into matrices
+xi_matrix <- do.call(rbind, xi)  # Each row = one day's traffic (24 values)
+yi_matrix <- do.call(rbind, yi)
+
+# Ensure both datasets have the same dimensions
+if (ncol(xi_matrix) != ncol(yi_matrix)) {
+  stop("Mismatch in feature dimensions between xi and yi")
+}
+
+
+# Compute MMD using RBF Kernel
+
+mmd_result <- kmmd(xi_matrix, yi_matrix, kernel = "rbfdot",
+                 kpar = "automatic")
+mmd_stat <- mmd_result@mmdstats[1]
+mmd_sigma <- mmd_result@kernelf@kpar$sigma
+cat("A24_wek_m6_7_8_MMD Statistic:", mmd_result@mmdstats, "\n")
+
+mmd_perm <- replicate(5000, {
+  combined <- rbind(xi_matrix, yi_matrix)  
+  perm_indices <- sample(nrow(combined))
+  perm_x <- combined[perm_indices[1:nrow(xi_matrix)], ]
+  perm_y <- combined[perm_indices[(nrow(xi_matrix)+1):nrow(combined)], ]
+  kmmd(perm_x, perm_y, kernel = "rbfdot",
+        kpar = list(mmd_sigma))@mmdstats[1]
+})
+
+A24_wek_m6_7_8_p_value <- mean(mmd_perm >= mmd_stat)
+cat("A24_wek_m6_7_8_p-value:", A24_wek_m6_7_8_p_value, "\n")
+```
+
+
+#filter d1_m11_12
+# attention snow days 2018/12/24 and 2018/12/31
+```{r}
+d1_m11_12_data <- bind_rows(
+ A26024_pre %>%  
+    filter(year(StartDate) %in% c(2018, 2019), 
+           Month %in% c(11,12), 
+           Wday == 1, 
+           !StartDate %in% as.Date(c("2018-12-24", "2018-12-31"))  # Exclude specific dates
+    ) %>%
+    mutate(Year = year(StartDate),  
+           Unique_Week = paste(Year, Week, sep = " "),  
+           Period = "Pre"), # Assign "Pre" period
+
+  A26024_post %>%  
+    filter(year(StartDate) %in% c("2023","2024"), Month %in% c(11,12), Wday == 1) %>%
+    mutate(Year = year(StartDate), 
+           Unique_Week = paste(Year, Week, sep = " "),
+           Period = "Post")    
+)
+d1_m11_12_data <- d1_m11_12_data %>%
+  mutate(Period = factor(Period, levels = c("Pre", "Post")))
+
+# **Choose the hour where labels will be placed (e.g., 12 PM)**
+ #label_hour <- 6  # Adjust this to any hour you want
+# Extract data points at the chosen hour
+ #label_data <- d1_m11_12_data %>%
+  #filter(Hour == label_hour) %>%
+  #mutate(Label = format(StartDate, "%Y-%m-%d"))  # Format StartDate for labeling
+ 
+# Aggregate hourly mean for each month
+hourly_mean_data <- d1_m11_12_data %>%
+  group_by(Period, Hour) %>%
+  summarise(traffic_mean = mean(traffic_count, na.rm = TRUE), .groups = "drop")
+
+# Plot grouped by day, colored by month, with mean trend line
+picture5_A24 <- ggplot(d1_m11_12_data, aes(x = Hour, y = traffic_count)) +
+  
+  # Plot raw data with thin lines for individual days
+  geom_line(aes(group = StartDate, color = as.factor(Period)), linewidth = 0.2, alpha = 0.4) +
+  
+  # Add trend lines (hourly mean for each month)
+  geom_line(data = hourly_mean_data, aes(x = Hour, y = traffic_mean, group = Period, color = as.factor(Period)),
+            linewidth = 0.8) +
+  # **Add labels at the chosen hour for each day's line**
+  #geom_text(data = label_data, aes(label = Label),   
+          #  position = position_jitter(width = 0.2, height = 100),  # Jitter to avoid overlap  
+           # size = 3, hjust = 0.5) + 
+ 
+  # Labels and themes
+  labs(title = "I205 Traffic Trends of Monday in Nov/Dec",
+       x = "Hour", y = "Traffic Count",
+       color = "Period") +
+  
+  # Adjust x-axis tick frequency (every 3 hours)
+scale_x_continuous(breaks = seq(0, 23, by = 3), labels = seq(0, 23, by = 3))
+  
+   theme_minimal() +
+  theme(
+    aspect.ratio = 1/8,
+    legend.position = "bottom",  
+    axis.text.x = element_text(angle = 45, hjust = 1, size = 8)  
+  )
+   print(picture5_A24)
+```
+
+#d1_m11_12 MMD
+```{r}
+# Step 2: Split Data into Pre (2019) and Post (2023)
+d1_mmd_m11_12_pre <- d1_m11_12_data %>%
+  filter(Year %in% c("2018","2019")) %>%  
+  arrange(Week, Wday, Hour) %>%  # Order by Week, Day, Hour
+  group_by(Week, Wday) %>%  # Group each day separately
+  summarise(traffic_count = list(traffic_count), .groups = "drop")  # Store as list
+xi <- d1_mmd_m11_12_pre$traffic_count
+
+d1_mmd_m11_12_post <- d1_m11_12_data %>%
+  filter(Year %in% c("2023","2024")) %>%  
+  arrange(Week, Wday, Hour) %>%  # Order by Week, Day, Hour
+  group_by(Week, Wday) %>%  # Group each day separately
+  summarise(traffic_count = list(traffic_count), .groups = "drop")  # Store as list
+yi <-d1_mmd_m11_12_post$traffic_count
+
+#Each xi and yi is a 24-dimensional vector (one full day of hourly traffic).
+#Each weekend contributes two samples (Saturday & Sunday).
+
+# Convert xi and yi into matrices
+xi_matrix <- do.call(rbind, xi)  # Each row = one day's traffic (24 values)
+yi_matrix <- do.call(rbind, yi)
+
+# Ensure both datasets have the same dimensions
+if (ncol(xi_matrix) != ncol(yi_matrix)) {
+  stop("Mismatch in feature dimensions between xi and yi")
+}
+
+
+# Compute MMD using RBF Kernel
+
+mmd_result <- kmmd(xi_matrix, yi_matrix, kernel = "rbfdot",
+                 kpar = "automatic")
+mmd_stat <- mmd_result@mmdstats[1]
+mmd_sigma <- mmd_result@kernelf@kpar$sigma
+cat("A24_d1_m11_12_MMD Statistic:", mmd_result@mmdstats, "\n")
+
+mmd_perm <- replicate(5000, {
+  combined <- rbind(xi_matrix, yi_matrix)  
+  perm_indices <- sample(nrow(combined))
+  perm_x <- combined[perm_indices[1:nrow(xi_matrix)], ]
+  perm_y <- combined[perm_indices[(nrow(xi_matrix)+1):nrow(combined)], ]
+  kmmd(perm_x, perm_y, kernel = "rbfdot",
+        kpar = list(mmd_sigma))@mmdstats[1]
+})
+
+A24_d1_m11_12_p_value <- mean(mmd_perm >= mmd_stat)
+cat("A24_d1_m11_12_p-value:", A24_d1_m11_12_p_value, "\n")
+```
+
+
+#filter d4_m11_12
+# attention snow days 2018/12/24 and 2018/12/31
+```{r}
+d4_m11_12_data <- bind_rows(
+ A26024_pre %>%  
+    filter(year(StartDate) %in% c(2018, 2019), 
+           Month %in% c(11,12), 
+           Wday == 4, 
+           !StartDate %in% as.Date(c("2018-12-24", "2018-12-31"))  # Exclude specific dates
+    ) %>%
+    mutate(Year = year(StartDate),  
+           Unique_Week = paste(Year, Week, sep = " "),  
+           Period = "Pre"), # Assign "Pre" period
+
+  A26024_post %>%  
+    filter(year(StartDate) %in% c("2023","2024"), Month %in% c(11,12), Wday == 4) %>%
+    mutate(Year = year(StartDate), 
+           Unique_Week = paste(Year, Week, sep = " "),
+           Period = "Post")    
+)
+d4_m11_12_data <- d4_m11_12_data %>%
+  mutate(Period = factor(Period, levels = c("Pre", "Post")))
+
+# **Choose the hour where labels will be placed (e.g., 12 PM)**
+ #label_hour <- 6  # Adjust this to any hour you want
+# Extract data points at the chosen hour
+ #label_data <- d4_m11_12_data %>%
+  #filter(Hour == label_hour) %>%
+  #mutate(Label = format(StartDate, "%Y-%m-%d"))  # Format StartDate for labeling
+ 
+# Aggregate hourly mean for each month
+hourly_mean_data <- d4_m11_12_data %>%
+  group_by(Period, Hour) %>%
+  summarise(traffic_mean = mean(traffic_count, na.rm = TRUE), .groups = "drop")
+
+# Plot grouped by day, colored by month, with mean trend line
+ggplot(d4_m11_12_data, aes(x = Hour, y = traffic_count)) +
+  
+  # Plot raw data with thin lines for individual days
+  geom_line(aes(group = StartDate, color = as.factor(Period)), linewidth = 0.2, alpha = 0.4) +
+  
+  # Add trend lines (hourly mean for each month)
+  geom_line(data = hourly_mean_data, aes(x = Hour, y = traffic_mean, group = Period, color = as.factor(Period)),
+            linewidth = 0.8) +
+  # **Add labels at the chosen hour for each day's line**
+  #geom_text(data = label_data, aes(label = Label),   
+          #  position = position_jitter(width = 0.2, height = 100),  # Jitter to avoid overlap  
+           # size = 3, hjust = 0.5) + 
+ 
+  # Labels and themes
+  labs(title = "Traffic Trends Monday m11_12 (by Period)",
+       x = "Hour", y = "Traffic Count",
+       color = "Period") +
+  
+  # Adjust x-axis tick frequency (every 3 hours)
+scale_x_continuous(breaks = seq(0, 23, by = 3), labels = seq(0, 23, by = 3))
+  
+   theme_minimal() +
+  theme(
+    aspect.ratio = 1/8,
+    legend.position = "bottom",  
+    axis.text.x = element_text(angle = 45, hjust = 1, size = 8)  
+  )
+```
+
+
+#d4_m11_12 MMD
+```{r}
+# Step 2: Split Data into Pre (2019) and Post (2023)
+d4_mmd_m11_12_pre <- d4_m11_12_data %>%
+  filter(Year %in% c("2018","2019")) %>%  
+  arrange(Week, Wday, Hour) %>%  # Order by Week, Day, Hour
+  group_by(Week, Wday) %>%  # Group each day separately
+  summarise(traffic_count = list(traffic_count), .groups = "drop")  # Store as list
+xi <- d4_mmd_m11_12_pre$traffic_count
+
+d4_mmd_m11_12_post <- d4_m11_12_data %>%
+  filter(Year %in% c("2023","2024")) %>%  
+  arrange(Week, Wday, Hour) %>%  # Order by Week, Day, Hour
+  group_by(Week, Wday) %>%  # Group each day separately
+  summarise(traffic_count = list(traffic_count), .groups = "drop")  # Store as list
+yi <-d4_mmd_m11_12_post$traffic_count
+
+#Each xi and yi is a 24-dimensional vector (one full day of hourly traffic).
+#Each weekend contributes two samples (Saturday & Sunday).
+
+# Convert xi and yi into matrices
+xi_matrix <- do.call(rbind, xi)  # Each row = one day's traffic (24 values)
+yi_matrix <- do.call(rbind, yi)
+
+# Ensure both datasets have the same dimensions
+if (ncol(xi_matrix) != ncol(yi_matrix)) {
+  stop("Mismatch in feature dimensions between xi and yi")
+}
+
+
+# Compute MMD using RBF Kernel
+
+mmd_result <- kmmd(xi_matrix, yi_matrix, kernel = "rbfdot",
+                 kpar = "automatic")
+mmd_stat <- mmd_result@mmdstats[1]
+mmd_sigma <- mmd_result@kernelf@kpar$sigma
+cat("A24_d4_m11_12_MMD Statistic:", mmd_result@mmdstats, "\n")
+
+mmd_perm <- replicate(5000, {
+  combined <- rbind(xi_matrix, yi_matrix)  
+  perm_indices <- sample(nrow(combined))
+  perm_x <- combined[perm_indices[1:nrow(xi_matrix)], ]
+  perm_y <- combined[perm_indices[(nrow(xi_matrix)+1):nrow(combined)], ]
+  kmmd(perm_x, perm_y, kernel = "rbfdot",
+        kpar = list(mmd_sigma))@mmdstats[1]
+})
+
+A24_d4_m11_12_p_value <- mean(mmd_perm >= mmd_stat)
+cat("A24_d4_m11_12_p-value:", A24_d4_m11_12_p_value, "\n")
+```
+
+
+#filter d5_m11_12
+```{r}
+d5_m11_12_data <- bind_rows(
+  A26024_pre %>%  
+    filter((year(StartDate) %in% c("2018","2019") & Month %in% c(11,12) & Wday == 5)) %>%
+    mutate(Year = year(StartDate), 
+           Unique_Week = paste(Year, Week, sep = " "),
+           Period = "Pre"),  # unique week no.
+
+  A26024_post %>%  
+    filter(year(StartDate) %in% c("2023","2024"), Month %in% c(11,12), Wday == 5) %>%
+    mutate(Year = year(StartDate), 
+           Unique_Week = paste(Year, Week, sep = " "),
+           Period = "Post")   
+)
+d5_m11_12_data <- d5_m11_12_data %>%
+  mutate(Period = factor(Period, levels = c("Pre", "Post")))
+# **Choose the hour where labels will be placed (e.g., 12 PM)**
+ #label_hour <- 6  # Adjust this to any hour you want
+# Extract data points at the chosen hour
+ #label_data <- d5_m11_12_data %>%
+  #filter(Hour == label_hour) %>%
+  #mutate(Label = format(StartDate, "%Y-%m-%d"))  # Format StartDate for labeling
+ 
+ 
+# Aggregate hourly mean for each month
+hourly_mean_data <- d5_m11_12_data %>%
+  group_by(Period, Hour) %>%
+  summarise(traffic_mean = mean(traffic_count, na.rm = TRUE), .groups = "drop")
+
+# Plot grouped by day, colored by month, with mean trend line
+picture15_A24 <- ggplot(d5_m11_12_data, aes(x = Hour, y = traffic_count)) +
+  
+  # Plot raw data with thin lines for individual days
+  geom_line(aes(group = StartDate, color = as.factor(Period)), linewidth = 0.2, alpha = 0.4) +
+  
+  # Add trend lines (hourly mean for each month)
+  geom_line(data = hourly_mean_data, aes(x = Hour, y = traffic_mean, group = Period, color = as.factor(Period)),
+            linewidth = 0.8) +
+ # **Add labels at the chosen hour for each day's line**
+ # geom_text(data = label_data, aes(label = Label),   
+           # position = position_jitter(width = 0.2, height = 100),  # Jitter to avoid overlap  
+           # size = 3, hjust = 0.5) + 
+ 
+  # Labels and themes
+  labs(title = "I205 Traffic Trends of Friday in Nov/Dec",
+       x = "Hour", y = "Traffic Count",
+       color = "Period") +
+  
+  # Adjust x-axis tick frequency (every 3 hours)
+scale_x_continuous(breaks = seq(0, 23, by = 3), labels = seq(0, 23, by = 3))
+  
+   theme_minimal() +
+  theme(
+    aspect.ratio = 1/8,
+    legend.position = "bottom",  
+    axis.text.x = element_text(angle = 45, hjust = 1, size = 8)  
+  )
+   print(picture15_A24)
+```
+
+
+#d5_m11_12 MMD
+```{r}
+# Step 2: Split Data into Pre (2019) and Post (2023)
+d5_mmd_m11_12_pre <- d5_m11_12_data %>%
+  filter(Year %in% c("2018","2019")) %>%  # Select March 2019 weekends
+  arrange(Week, Wday, Hour) %>%  # Order by Week, Day, Hour
+  group_by(Week, Wday) %>%  # Group each day separately
+  summarise(traffic_count = list(traffic_count), .groups = "drop")  # Store as list
+xi <- d5_mmd_m11_12_pre$traffic_count
+
+d5_mmd_m11_12_post <- d5_m11_12_data %>%
+  filter(Year %in% c("2023","2024")) %>%  
+  arrange(Week, Wday, Hour) %>%  # Order by Week, Day, Hour
+  group_by(Week, Wday) %>%  # Group each day separately
+  summarise(traffic_count = list(traffic_count), .groups = "drop")  # Store as list
+yi <-d5_mmd_m6_7_8_post$traffic_count
+
+#Each xi and yi is a 24-dimensional vector (one full day of hourly traffic).
+#Each weekend contributes two samples (Saturday & Sunday).
+
+# Convert xi and yi into matrices
+xi_matrix <- do.call(rbind, xi)  # Each row = one day's traffic (24 values)
+yi_matrix <- do.call(rbind, yi)
+
+# Ensure both datasets have the same dimensions
+if (ncol(xi_matrix) != ncol(yi_matrix)) {
+  stop("Mismatch in feature dimensions between xi and yi")
+}
+
+
+# Compute MMD using RBF Kernel
+
+mmd_result <- kmmd(xi_matrix, yi_matrix, kernel = "rbfdot",
+                 kpar = "automatic")
+mmd_stat <- mmd_result@mmdstats[1]
+mmd_sigma <- mmd_result@kernelf@kpar$sigma
+cat("A24_d5_m11_12_MMD Statistic:", mmd_result@mmdstats, "\n")
+
+mmd_perm <- replicate(5000, {
+  combined <- rbind(xi_matrix, yi_matrix)  
+  perm_indices <- sample(nrow(combined))
+  perm_x <- combined[perm_indices[1:nrow(xi_matrix)], ]
+  perm_y <- combined[perm_indices[(nrow(xi_matrix)+1):nrow(combined)], ]
+  kmmd(perm_x, perm_y, kernel = "rbfdot",
+        kpar = list(mmd_sigma))@mmdstats[1]
+})
+
+A24_d5_m11_12_p_value <- mean(mmd_perm >= mmd_stat)
+cat("A24_d5_m11_12_p-value:", A24_d5_m11_12_p_value, "\n")
+```
+
+# filter data weekend in m11_12
+
+```{r}
+wed_m11_12_data <- bind_rows(
+  A26024_pre %>%  
+    filter((year(StartDate) %in% c("2018","2019") & Month %in% c(11,12) & Wday %in% c(6:7))) %>%
+    mutate(Year = year(StartDate), 
+           Unique_Week = paste(Year, Week, sep = " "),
+           Period = "Pre"),  # unique week no.
+
+  A26024_post %>%  
+    filter(year(StartDate) %in% c("2023","2024"), Month %in% c(11,12), Wday %in% c(6:7)) %>%
+    mutate(Year = year(StartDate), 
+           Unique_Week = paste(Year, Week, sep = " "),
+           Period = "Post")   
+)
+wed_m11_12_data <- wed_m11_12_data %>%
+  mutate(Period = factor(Period, levels = c("Pre", "Post")))
+# Aggregate hourly mean for each month
+hourly_summary_data <- wed_m11_12_data %>%
+  group_by(Period, Hour) %>%
+  summarise(traffic_mean = mean(traffic_count, na.rm = TRUE), 
+            traffic_q25 = quantile(traffic_count, 0.25, na.rm = TRUE),
+            traffic_q75 = quantile(traffic_count, 0.75, na.rm = TRUE),
+            .groups = "drop")
+
+picture20_A24 <- ggplot() +  
+  # IQR shading (group = Year to prevent overlapping)
+  #geom_ribbon(data = hourly_summary_data, 
+             # aes(x = Hour, ymin = traffic_q25, ymax = traffic_q75, 
+               #   fill = as.factor(Period), group = Period), 
+              #alpha = 0.6) +
+
+  # Plot raw data with thin lines for individual days
+  geom_line(data = wed_m11_12_data, 
+            aes(x = Hour, y = traffic_count, group = StartDate, color = as.factor(Period)), 
+            linewidth = 0.2, alpha = 0.4) +
+
+  # Add trend lines (hourly mean for each year)
+  geom_line(data = hourly_summary_data, 
+            aes(x = Hour, y = traffic_mean, group = Period, color = as.factor(Period)), 
+            linewidth = 0.8) +
+  
+  # Labels and themes
+  labs(title = "I205 Traffic Trends of Weekend in Nov/Dec",
+       x = "Hour", y = "Traffic Count",
+       color = "Period", fill = "Period") +
+
+ # Adjust x-axis tick frequency (every 3 hours)
+scale_x_continuous(breaks = seq(0, 23, by = 3), labels = seq(0, 23, by = 3))
+  
+   theme_minimal() +
+  theme(
+    aspect.ratio = 1/8,
+    legend.position = "bottom",  
+    axis.text.x = element_text(angle = 45, hjust = 1, size = 8)  
+  )
+   print(picture20_A24)
+```
+
+#wed m11_12 MMD
+```{r}
+mmd_m11_12wed_pre <- wed_m11_12_data %>%
+  filter(Year %in% c("2018","2019")) %>%  
+  arrange(Year, Month, Week, Wday, Hour) %>%  # Order by Week, Day, Hour
+  group_by(Month, Week, Wday) %>%  # Group each day separately
+  summarise(traffic_count = list(traffic_count), .groups = "drop")  # Store as list
+xi <- mmd_m11_12wed_pre$traffic_count
+
+mmd_m11_12wed_post <- wed_m11_12_data %>%
+  filter(Year %in% c("2023","2024")) %>%  
+  arrange(Year, Month, Week, Wday, Hour) %>%  # Order by Week, Day, Hour
+  group_by(Month, Week, Wday) %>%  # Group each day separately
+  summarise(traffic_count = list(traffic_count), .groups = "drop")  # Store as list
+yi <- mmd_m11_12wed_post$traffic_count
+
+#Each xi and yi is a 24-dimensional vector (one full day of hourly traffic).
+#Each weekend contributes three samples (tue/wed/thur).
+
+# Convert xi and yi into matrices
+xi_matrix <- do.call(rbind, xi)  # Each row = one day's traffic (24 values)
+yi_matrix <- do.call(rbind, yi)
+
+# Ensure both datasets have the same dimensions
+if (ncol(xi_matrix) != ncol(yi_matrix)) {
+  stop("Mismatch in feature dimensions between xi and yi")
+}
+
+
+# Compute MMD using RBF Kernel
+
+mmd_result <- kmmd(xi_matrix, yi_matrix, kernel = "rbfdot",
+                 kpar = "automatic")
+mmd_stat <- mmd_result@mmdstats[1]
+mmd_sigma <- mmd_result@kernelf@kpar$sigma
+cat("A24_wed_m11_12_MMD Statistic:", mmd_result@mmdstats, "\n")
+
+mmd_perm <- replicate(5000, {
+  combined <- rbind(xi_matrix, yi_matrix)  
+  perm_indices <- sample(nrow(combined))
+  perm_x <- combined[perm_indices[1:nrow(xi_matrix)], ]
+  perm_y <- combined[perm_indices[(nrow(xi_matrix)+1):nrow(combined)], ]
+  kmmd(perm_x, perm_y, kernel = "rbfdot",
+        kpar = list(mmd_sigma))@mmdstats[1]
+})
+
+A24_wed_m11_12_p_value <- mean(mmd_perm >= mmd_stat)
+cat("A24_wed_m11_12_p-value:", A24_wed_m11_12_p_value, "\n")
+```
+
+
+# filter data weekdays in m11_12
+```{r}
+wek_m11_12_data <- bind_rows(
+ A26024_pre %>%  
+    filter((year(StartDate) %in% c("2018","2019") & Month %in% c(11,12) & Wday %in% c(2:4))) %>%
+    mutate(Year = year(StartDate), 
+           Unique_Week = paste(Year, Week, sep = " "),
+           Period = "Pre"),  # unique week no.
+
+  A26024_post %>%  
+    filter(year(StartDate) %in% c(2023, 2024), Month %in% c(11,12), Wday %in% c(2:4)) %>%
+    mutate(Year = year(StartDate), 
+           Unique_Week = paste(Year, Week, sep = " "),
+           Period = "Post")  
+)
+wek_m11_12_data <- wek_m11_12_data %>%
+  mutate(Period = factor(Period, levels = c("Pre", "Post")))
+# Aggregate hourly mean for each month
+hourly_summary_data <- wek_m11_12_data %>%
+  group_by(Period, Hour) %>%
+  summarise(traffic_mean = mean(traffic_count, na.rm = TRUE), 
+            traffic_q25 = quantile(traffic_count, 0.25, na.rm = TRUE),
+            traffic_q75 = quantile(traffic_count, 0.75, na.rm = TRUE),
+            .groups = "drop")
+
+picture10_A24 <- ggplot() +  
+  # IQR shading (group = Year to prevent overlapping)
+  #geom_ribbon(data = hourly_summary_data, 
+             # aes(x = Hour, ymin = traffic_q25, ymax = traffic_q75, 
+               #   fill = as.factor(Period), group = Period), 
+              #alpha = 0.6) +
+
+  # Plot raw data with thin lines for individual days
+  geom_line(data = wek_m11_12_data, 
+            aes(x = Hour, y = traffic_count, group = StartDate, color = as.factor(Period)), 
+            linewidth = 0.2, alpha = 0.4) +
+
+  # Add trend lines (hourly mean for each year)
+  geom_line(data = hourly_summary_data, 
+            aes(x = Hour, y = traffic_mean, group = Period, color = as.factor(Period)), 
+            linewidth = 0.8) +
+  
+  # Labels and themes
+  labs(title = "I205 Traffic Trends of Tue/Wed/Thur in Nov/Dec",
+       x = "Hour", y = "Traffic Count",
+       color = "Period", fill = "Period") +
+
+  # Adjust x-axis tick frequency (every 3 hours)
+scale_x_continuous(breaks = seq(0, 23, by = 3), labels = seq(0, 23, by = 3))
+  
+   theme_minimal() +
+  theme(
+    aspect.ratio = 1/8,
+    legend.position = "bottom",  
+    axis.text.x = element_text(angle = 45, hjust = 1, size = 8)  
+  )
+   print(picture10_A24)
+```
+
+#
+#wek m11_12 MMD
+```{r}
+mmd_m11_12wek_pre <- wek_m11_12_data %>%
+  filter(Year %in% c("2018","2019")) %>%  
+  arrange(Year, Month, Week, Wday, Hour) %>%  # Order by Week, Day, Hour
+  group_by(Month, Week, Wday) %>%  # Group each day separately
+  summarise(traffic_count = list(traffic_count), .groups = "drop")  # Store as list
+xi <- mmd_m6_7_8wek_pre$traffic_count
+
+mmd_m11_12wek_post <- wek_m11_12_data %>%
+  filter(Year %in% c("2023","2024")) %>%  
+  arrange(Year, Month, Week, Wday, Hour) %>%  # Order by Week, Day, Hour
+  group_by(Month, Week, Wday) %>%  # Group each day separately
+  summarise(traffic_count = list(traffic_count), .groups = "drop")  # Store as list
+yi <- mmd_m11_12wek_post$traffic_count
+
+#Each xi and yi is a 24-dimensional vector (one full day of hourly traffic).
+#Each weekend contributes three samples (tue/wed/thur).
+
+
+# Convert xi and yi into matrices
+xi_matrix <- do.call(rbind, xi)  # Each row = one day's traffic (24 values)
+yi_matrix <- do.call(rbind, yi)
+
+# Ensure both datasets have the same dimensions
+if (ncol(xi_matrix) != ncol(yi_matrix)) {
+  stop("Mismatch in feature dimensions between xi and yi")
+}
+
+# Compute MMD using RBF Kernel
+
+mmd_result <- kmmd(xi_matrix, yi_matrix, kernel = "rbfdot",
+                 kpar = "automatic")
+mmd_stat <- mmd_result@mmdstats[1]
+mmd_sigma <- mmd_result@kernelf@kpar$sigma
+cat("A24_wek_m11_12_MMD Statistic:", mmd_result@mmdstats, "\n")
+
+mmd_perm <- replicate(5000, {
+  combined <- rbind(xi_matrix, yi_matrix)  
+  perm_indices <- sample(nrow(combined))
+  perm_x <- combined[perm_indices[1:nrow(xi_matrix)], ]
+  perm_y <- combined[perm_indices[(nrow(xi_matrix)+1):nrow(combined)], ]
+  kmmd(perm_x, perm_y, kernel = "rbfdot",
+        kpar = list(mmd_sigma))@mmdstats[1]
+})
+
+A24_wek_m11_12_p_value <- mean(mmd_perm >= mmd_stat)
+cat("A24_wek_m11_12_p-value:", A24_wek_m11_12_p_value, "\n")
+```
+
+
+
+
+adjusted multiple comparison
+```{r}
+
+# Named p-values (original orde
+a24_p_values <- c(A24_d1_m1_2_p_value, 
+              A24_d1_m3_p_value, 
+              A24_d1_m4_5_9_10_p_value, 
+              A24_d1_m6_7_8_p_value, 
+              A24_d1_m11_12_p_value)
+# Assign proper names to each p-value dynamically
+names(a24_p_values) <- c("A24_Monday_Jan/Feb", 
+                     "A24_Monday_Mar", 
+                     "A24_Monday_Apr/May/Sept/Oct", 
+                     "A24_Monday_Jun/Jul/Aug", 
+                     "A24_Monday_Nov/Dec")
+
+a24_pval_df <- tibble(name=names(a24_p_values),p_val=a24_p_values)
+
+```
+
+
+#thursday
+```{r}
+# Named p-values (original orde
+a24_p_values <- c(A24_d4_m1_2_p_value, 
+              A24_d4_m3_p_value, 
+              A24_d4_m4_5_9_10_p_value, 
+              A24_d4_m6_7_8_p_value, 
+              A24_d4_m11_12_p_value)
+# Assign proper names to each p-value dynamically
+names(a24_p_values) <- c("A24_Thur_Jan/Feb", 
+                     "A24_Thur_Mar", 
+                     "A24_Thur_Apr/May/Sept/Oct", 
+                     "A24_Thur_Jun/Jul/Aug", 
+                     "A24_Thur_Nov/Dec")
+
+#a24_pval_df <- rbind(pval_df,
+                 #tibble(name=names(a24_p_values),p_val=a24_p_values))
+
+```
+
+
+
+#friday
+```{r}
+# Named p-values (original orde
+a24_p_values <- c(A24_d5_m1_2_p_value, 
+              A24_d5_m3_p_value, 
+              A24_d5_m4_5_9_10_p_value, 
+              A24_d5_m6_7_8_p_value, 
+              A24_d5_m11_12_p_value)
+# Assign proper names to each p-value dynamically
+names(a24_p_values) <- c("A24_Friday_Jan/Feb", 
+                     "A24_Friday_Mar", 
+                     "A24_Friday_Apr/May/Sept/Oct", 
+                     "A24_Friday_Jun/Jul/Aug", 
+                     "A24_Friday_Nov/Dec")
+
+
+a24_pval_df <- rbind(a24_pval_df,
+                 tibble(name=names(a24_p_values),p_val=a24_p_values))
+```
+
+
+#weekend
+```{r}
+# Named p-values (original orde
+a24_p_values <- c(A24_wed_m1_2_p_value, 
+              A24_wed_m3_p_value, 
+              A24_wed_m4_5_9_10_p_value, 
+              A24_wed_m6_7_8_p_value, 
+              A24_wed_m11_12_p_value)
+# Assign proper names to each p-value dynamically
+names(a24_p_values) <- c("A24_Weekend_Jan/Feb", 
+                     "A24_Weekend_Mar", 
+                     "A24_Weekend_Apr/May/Sept/Oct", 
+                     "A24_Weekend_Jun/Jul/Aug", 
+                     "A24_Weekend_Nov/Dec")
+
+a24_pval_df <- rbind(a24_pval_df,
+                 tibble(name=names(a24_p_values),p_val=a24_p_values))
+```
+
+#weekdays
+```{r}
+# Named p-values (original orde
+a24_p_values <- c(A24_wek_m1_2_p_value, 
+              A24_wek_m3_p_value, 
+              A24_wek_m4_5_9_10_p_value, 
+              A24_wek_m6_7_8_p_value, 
+              A24_wek_m11_12_p_value)
+ # Assign proper names to each p-value dynamically
+names(a24_p_values) <- c("A24_Tue/Wed/Thur_Jan/Feb", 
+                     "A24_Tue/Wed/Thur_Mar", 
+                     "A24_Tue/Wed/Thur_Apr/May/Sept/Oct", 
+                     "A24_Tue/Wed/Thur_Jun/Jul/Aug", 
+                     "A24_Tue/Wed/Thur_Nov/Dec")
+
+a24_pval_df <- rbind(a24_pval_df,
+                 tibble(name=names(a24_p_values),p_val=a24_p_values))
+
+print(a24_pval_df)
+```
+
+
+#HEATMAP 
+```{r}
+library(ggplot2)
+library(dplyr)
+library(stringr)
+library(tidyr)  
+
+# Define factor levels for proper ordering
+day_levels <- c("Monday", "Tue/Wed/Thur", "Friday", "Weekend")
+month_levels <- c("Jan/Feb", "Mar", "Apr/May/Sept/Oct", "Jun/Jul/Aug", "Nov/Dec")
+
+# Convert Day_Type and Month_Group into ordered factors
+a24_pval_df <- a24_pval_df %>%
+  mutate(
+    Day_Type = factor(sub("A24_([^_]+)_.*", "\\1", name), levels = day_levels, ordered = TRUE),
+    Month_Group = factor(str_extract(name, "[^_]+$"), levels = month_levels, ordered = TRUE)
+  )
+
+# Reshape data using pivot_wider()
+a24_pval_matrix <- a24_pval_df %>%
+  select(Day_Type, Month_Group, p_val) %>%
+  pivot_wider(names_from = Month_Group, values_from = p_val)
+
+# Convert back to long format using pivot_longer()
+a24_pval_long <- a24_pval_matrix %>%
+  pivot_longer(cols = -Day_Type, names_to = "Month_Group", values_to = "p_val")
+
+# Define a smooth green gradient, avoiding blue tones
+custom_colors <- scale_fill_gradientn(
+  colors = c("#74c476", "#a1d99b", "#d9f0d3", "#fee391", "#fc9272"),  
+  values = c(0, 0.01, 0.05, 0.1, 1),  
+  limits = c(0, 1),
+  name = "p-value"
+)
+
+# Plot heatmap with improved color gradient
+pvalues_A24 <- ggplot(a24_pval_long, aes(x = Month_Group, y = Day_Type, fill = p_val)) +
+  geom_tile(color = "grey50") +  # Tile border for readability
+  geom_text(aes(label = round(p_val, 3)), color = "red", size = 3) +  # Display p-values correctly
+  custom_colors +  # Apply refined color scale
+  scale_y_discrete(limits = rev(levels(a24_pval_long$Day_Type))) +  # Reverse order of y-axis
+  scale_x_discrete(limits = month_levels) +  # Ensure correct month order (Jan → Dec)
+  theme_minimal() +
+  labs(
+    title = "I205 p-values by Day Type & Month Group",
+    x = "Month Group",
+    y = "Day Type"
+  ) +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))  # Rotate x-axis labels for readability
+
+print(pvalues_A24)
+ggsave("ATR26024_Plots/pvalues_A24.png", plot = pvalues_A24, width = 8, height = 6, dpi = 300)
+```
+
+
+
+#save all plots
+```{r}
+# list
+png_files <- paste0("ATR26024_Plots/picture", 1:20, "_A24.png")
+
+# save
+for (i in 1:20) {
+  ggsave(filename = png_files[i], plot = get(paste0("picture", i, "_A24")), width = 8, height = 6, dpi = 300)
+}
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

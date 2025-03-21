@@ -1,0 +1,205 @@
+---
+title: "570-pj-4"
+output: html_document
+date: "2025-02-11"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+```{r cars}
+summary(cars)
+```
+
+## Including Plots
+
+You can also embed plots, for example:
+
+```{r pressure, echo=FALSE}
+plot(pressure)
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+
+
+#load data
+
+```{r}
+library(readr)
+A26004_pre <- read_csv("570 project/A26004_pre.csv")
+A26004_post <- read_csv("570 project/A26004_post.csv")
+```
+
+
+#filter data
+```{r}
+
+# Step 1: Filter Data for selecting only weekdays (Monday-Friday) and merge
+library(lubridate)
+library(dplyr)
+wek_m4_5_data <- bind_rows(
+  A26004_pre %>%  
+    filter(year(StartDate) == 2018, Month %in% c(4,5), Wday %in% 2:4) %>%
+    mutate(Year = year(StartDate), 
+           Unique_Week = paste(Year, Week, sep = " ")),  # unique week no.
+
+  A26004_post %>%  
+    filter(year(StartDate) %in% c(2023, 2024), Month %in% c(4,5), Wday %in% 2:4) %>%
+    mutate(Year = year(StartDate), 
+           Unique_Week = paste(Year, Week, sep = " "))  
+)
+```
+# March weekend
+```{r}
+# Step: Filter Data for selecting only weekends (Sat-Sun) and merge
+# Step 1: Filter Data for selecting only weekends (Sat-Sun) and merge
+library(dplyr)
+wed_m3_data <- bind_rows(
+  A26004_pre %>%  
+    filter(year(StartDate) == 2018, Month == 3, Wday %in% 6:7) %>%
+    mutate(Year = year(StartDate), 
+           Unique_Week = paste(Year, Week, sep = " ")),  # unique week no.
+
+  A26004_post %>%  
+    filter(year(StartDate) %in% c(2023, 2024), Month == 3, Wday %in% 6:7) %>%
+    mutate(Year = year(StartDate), 
+           Unique_Week = paste(Year, Week, sep = " "))  
+)
+
+# Step 2: Split Data into Pre (2018) and Post (2023)
+mmd_m3_pre_18 <- wed_m3_data %>%
+  filter(Year == 2018) %>%  # Select March 2018 weekends
+  arrange(Week, Wday, Hour) %>%  # Order by Week, Day, Hour
+  group_by(Week, Wday) %>%  # Group each day separately
+  summarise(traffic_count = list(traffic_count), .groups = "drop")  # Store as list
+xi <- mmd_m3_pre_18$traffic_count
+
+mmd_m3_post_23 <- wed_m3_data %>%
+  filter(Year == 2023) %>%  # Select March 2018 weekends
+  arrange(Week, Wday, Hour) %>%  # Order by Week, Day, Hour
+  group_by(Week, Wday) %>%  # Group each day separately
+  summarise(traffic_count = list(traffic_count), .groups = "drop")  # Store as list
+yi <- mmd_m3_pre_18$traffic_count
+
+#Each xi and yi is a 24-dimensional vector (one full day of hourly traffic).
+#Each weekend contributes two samples (Saturday & Sunday).
+
+library(kernlab)
+
+# Convert xi and yi into matrices
+xi_matrix <- do.call(rbind, xi)  # Each row = one day's traffic (24 values)
+yi_matrix <- do.call(rbind, yi)
+
+
+#normalization 
+#normalize <- function(mat) {
+ # return((mat - mean(mat)) / sd(mat))  # Standardization
+#}
+
+#xi_matrix <- normalize(xi_matrix)
+#yi_matrix <- normalize(yi_matrix)
+
+# Ensure both datasets have the same dimensions
+if (ncol(xi_matrix) != ncol(yi_matrix)) {
+  stop("Mismatch in feature dimensions between xi and yi")
+}
+
+# Compute MMD using RBF Kernel
+mmd_test <- kmmd(xi_matrix, yi_matrix, kernel = "rbfdot", kpar = list(sigma = 0.1), alpha=0.05, 
+                  ntimes=1000, replace=TRUE)
+
+
+mmd_stat <- mmd_test@mmdstats  # Extract MMD statistic
+cat("MMD Statistic:", mmd_stat, "\n")
+
+# Compute Permutation Test for p-value
+mmd_perm <- mean(replicate(1000, {
+  perm_x <- sample(1:nrow(xi_matrix))
+  perm_y <- sample(1:nrow(yi_matrix))
+  kmmd(xi_matrix[perm_x, ], yi_matrix[perm_y, ], kernel = "rbfdot", kpar = list(sigma = 1))@mmdstats
+}))
+
+p_value <- mean(mmd_perm >= mmd_stat)
+cat("p-value:", p_value, "\n")
+```
+
+
+
+
+# do i need to plot each day line 
+# April tuesday/wednesday/thursday as identical day
+```{r}
+# Step: Filter Data for selecting only weekdays (tuesday-thursday) and merge
+
+# Step 2: Split Data into Pre (2018) and Post (2023)
+mmd_m4_5wek_pre_18 <- wek_m4_5_data %>%
+  filter(Year == 2018) %>%  # Select 04/2018 weekdays
+  arrange(Month, Week, Wday, Hour) %>%  # Order by Week, Day, Hour
+  group_by(Month, Week, Wday) %>%  # Group each day separately
+  summarise(traffic_count = list(traffic_count), .groups = "drop")  # Store as list
+xi <- mmd_m4_5wek_pre_18$traffic_count
+
+mmd_m4_5wek_post_23 <- wek_m4_5_data %>%
+  filter(Year == 2023) %>%  # Select 04/2023 weekdays
+  arrange(Month, Week, Wday, Hour) %>%  # Order by Week, Day, Hour
+  group_by(Month, Week, Wday) %>%  # Group each day separately
+  summarise(traffic_count = list(traffic_count), .groups = "drop")  # Store as list
+yi <- mmd_m4_5wek_post_23$traffic_count
+
+#Each xi and yi is a 24-dimensional vector (one full day of hourly traffic).
+#Each weekend contributes three samples (tue/wed/thur).
+
+library(kernlab)
+
+# Convert xi and yi into matrices
+xi_matrix <- do.call(rbind, xi)  # Each row = one day's traffic (24 values)
+yi_matrix <- do.call(rbind, yi)
+
+
+#normalization 
+#normalize <- function(mat) {
+  #return((mat - mean(mat)) / sd(mat))  # Standardization
+#}
+
+#xi_matrix <- normalize(xi_matrix)
+#yi_matrix <- normalize(yi_matrix)
+
+# Ensure both datasets have the same dimensions
+if (ncol(xi_matrix) != ncol(yi_matrix)) {
+  stop("Mismatch in feature dimensions between xi and yi")
+}
+
+# Compute MMD using RBF Kernel
+mmd_test <- kmmd(xi_matrix, yi_matrix, kernel = "rbfdot", kpar = list(sigma = 0.1))
+
+
+mmd_stat <- mmd_test@mmdstats  # Extract MMD statistic
+cat("MMD Statistic:", mmd_stat, "\n")
+
+set.seed(123)  # For reproducibility
+
+# Combine datasets
+combined_data <- rbind(xi_matrix, yi_matrix)
+n_x <- nrow(xi_matrix)
+
+# Compute MMD for 1000 shuffled datasets
+mmd_perm <- replicate(1000, {
+  perm_indices <- sample(1:nrow(combined_data))  # Shuffle all rows
+  perm_x <- combined_data[perm_indices[1:n_x], ]
+  perm_y <- combined_data[perm_indices[(n_x+1):nrow(combined_data)], ]
+  
+  kmmd(perm_x, perm_y, kernel = "rbfdot", kpar = list(sigma = 1))@mmdstats[1]
+})
+
+# Compute p-value
+p_value <- mean(mmd_perm >= mmd_stat)  
+cat("p-value:", p_value, "\n")
+```
+
