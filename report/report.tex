@@ -125,10 +125,11 @@ After some experimentation we found the periodic cubic splines with knot positio
 generalized well for our data. The knots for $s_3$ were chosen because we are primarily interested in the effect on peak traffic periods, so we choose the knots to be more densely located during these times to give the model more ability to express differences in the interaction while limiting negative effects of over-paramaterizing the model.
 
 \subsection{Maximum Mean Discrepancy (MMD)}
+In many real-world applications, we want to determine whether two sets of data come from the same distribution. For example, we might ask: “Did traffic behave the same way before and after the pandemic?” Traditional statistical methods often rely on parametric assumptions or focus on summary statistics, which may overlook subtle but important differences—especially in complex, high-dimensional data like traffic patterns.
 
-Traditional statistical methods often rely on parametric assumptions, which may fail to capture the complexity and high-dimensional nature of real-world traffic patterns. To address these limitations, Maximum Mean Discrepancy provides a robust, non-parametric alternative for detecting shifts in traffic distributions.
-MMD is a kernel-based statistical test that quantifies differences between probability distributions without imposing parametric constraints. By embedding distributions in a reproducing kernel Hilbert space (RKHS), MMD enables a flexible two-sample comparison by mapping traffic data into a high-dimensional space and evaluating the divergence in their mean embeddings. This approach is particularly well-suited for assessing shifts in traffic patterns before and after the pandemic, offering a data-driven framework for capturing complex, non-linear changes in distribution.
+	To address these limitations, Maximum Mean Discrepancy (MMD) offers a modern, non-parametric approach for comparing entire distributions directly. MMD is a kernel-based statistical test that embeds distributions into a reproducing kernel Hilbert space (RKHS), allowing for flexible two-sample comparisons without assuming any specific data distribution. By mapping traffic data into a high-dimensional space and evaluating the divergence between their mean embeddings, MMD is particularly well-suited for detecting complex, nonlinear shifts in traffic behavior.
 
+	In this project, MMD is used to detect distributional changes in traffic patterns before and after the pandemic across different days of the week. Its ability to capture full-distribution differences makes it a powerful tool for uncovering subtle but meaningful changes that may reflect long-term behavioral shifts in traffic demand.
 \subsubsection{Data Structuring Strategy}
 
 To ensure a systematic comparison of pre- and post-pandemic traffic patterns, the dataset is structured into two key dimensions:
@@ -200,7 +201,7 @@ The empirical p-value is calculated as:
 
 where \( B \) is the number of permutations, \( \text{MMD}^2_{\text{obs}} \) is the observed MMD statistic, and \( \mathbb{1}(\cdot) \) is an indicator function \cite{Gretton2012}.
 
-This methodology allows us to determine whether the observed shift in traffic patterns is statistically significant or could have arisen due to random fluctuations.
+This methodology allows us to determine whether the observed shift in traffic patterns is statistically significant or could have arisen due to random fluctuations. Under the null hypothesis (H₀), we assume that the pre- and post- traffic patterns do not differ in any meaningful way, and any observed differences are attributable to random variation rather than actual change.
 
 \section{Results}
 
